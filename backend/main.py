@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import get_settings
+from backend.database.connection import dispose_engine, get_engine
 from backend.logging_config import get_logger, setup_logging
 
 setup_logging()
@@ -21,10 +22,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         env=settings.app_env.value,
         debug=settings.app_debug,
     )
-    # Database pool will be initialized here in Phase 2
+    get_engine()
+    logger.info("database pool initialized")
     yield
+    await dispose_engine()
     logger.info("shutting down concierge")
-    # Cleanup will go here
 
 
 app = FastAPI(
