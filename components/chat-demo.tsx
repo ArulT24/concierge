@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bot, Mail, MapPin, Send, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -150,6 +151,7 @@ function WaitlistForm({ disabled, onSuccess }: WaitlistFormProps) {
 }
 
 export function ChatDemo() {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: createId(),
@@ -301,6 +303,10 @@ export function ChatDemo() {
         type: "text",
       },
     ]);
+
+    window.setTimeout(() => {
+      router.push("/bento-demo");
+    }, 900);
   }
 
   return (
