@@ -41,6 +41,7 @@ dist/
 build/
 *.egg-info/
 .eggs/
+.next/
 
 # Environment variables
 .env
@@ -57,4 +58,3 @@ htmlcov/
 *.tmp
 *.temp
 .cache/
-
