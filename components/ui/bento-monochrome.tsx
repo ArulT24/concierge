@@ -181,8 +181,7 @@ function FeaturesSectionMinimal() {
     },
     {
       title: "Venue",
-      blurb:
-        "Locked until launch. Personalized venue recommendations and shortlist details will appear here.",
+      blurb: "Calling venues right now!",
       meta: "Locked",
       icon: Lock,
       animation: "bento2-pulse 4s ease-in-out infinite",
@@ -190,8 +189,7 @@ function FeaturesSectionMinimal() {
     },
     {
       title: "Entertainment",
-      blurb:
-        "Locked until launch. Entertainment ideas, availability, and quote comparisons will appear here.",
+      blurb: "Entertainment isn't going to find itself!",
       meta: "Locked",
       icon: Lock,
       animation: "bento2-tilt 5.5s ease-in-out infinite",
@@ -199,8 +197,7 @@ function FeaturesSectionMinimal() {
     },
     {
       title: "Catering",
-      blurb:
-        "Locked until launch. Catering options, dietary notes, and sample menus will appear here.",
+      blurb: "On the phone with chefs!",
       meta: "Locked",
       icon: Lock,
       animation: "bento2-drift 8s ease-in-out infinite",
@@ -208,8 +205,7 @@ function FeaturesSectionMinimal() {
     },
     {
       title: "Decorations",
-      blurb:
-        "Locked until launch. Decor inspiration, mood boards, and shopping recommendations will appear here.",
+      blurb: "Creating the coolest mood board ever!",
       meta: "Locked",
       icon: Lock,
       animation: "bento2-glow 7s ease-in-out infinite",
@@ -271,15 +267,15 @@ function FeaturesSectionMinimal() {
         <header className="mb-10 flex flex-col gap-6 border-b border-neutral-900/10 pb-6 transition-colors duration-500 md:flex-row md:items-end md:justify-between dark:border-white/10">
           <div className="flex flex-col gap-2">
             <span className="text-xs uppercase tracking-[0.35em] text-neutral-500 transition-colors duration-500 dark:text-white/40">
-              Grid Studies
+              You have joined the waitlist
             </span>
             <h2 className="text-3xl font-black tracking-tight text-neutral-900 transition-colors duration-500 md:text-5xl dark:text-white">
-              Monochrome Bento
+              Coming soon!
             </h2>
           </div>
           <div className="flex flex-col items-start gap-4 md:items-end">
             <p className="max-w-sm text-sm text-neutral-600 transition-colors duration-500 md:text-base dark:text-white/60">
-              A stark layout built on modular spans, animated outlines, and purposeful whitespace.
+              We are calling venues, cooking food, and baking cakes right now!
             </p>
             <button
               type="button"
