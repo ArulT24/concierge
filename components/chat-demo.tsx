@@ -161,44 +161,96 @@ export function ChatDemo() {
   useEffect(() => {
     let cancelled = false;
 
-    async function initializeChat() {
+    async function tryResumeSession(): Promise<boolean> {
       try {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        });
+        const savedId = window.localStorage.getItem("concierge_session_id");
+        if (!savedId) return false;
+
+        const response = await fetch(`/api/chat/${savedId}`);
+        if (!response.ok) {
+          window.localStorage.removeItem("concierge_session_id");
+          return false;
+        }
 
         const data = (await response.json()) as {
           session_id?: string;
-          messages?: string[];
-          error?: string;
+          messages?: Array<{ role: string; content: string }>;
+          showWaitlist?: boolean;
         };
 
-        if (!response.ok) {
-          throw new Error(data.error ?? "Could not start chat.");
-        }
+        if (cancelled || !data.messages?.length) return false;
 
-        if (cancelled) {
-          return;
-        }
-
-        setSessionId(data.session_id ?? null);
+        setSessionId(data.session_id ?? savedId);
         setMessages(
-          (data.messages ?? []).map((content) => ({
+          data.messages.map((msg) => ({
             id: createId(),
-            role: "assistant" as const,
-            content,
+            role: msg.role as ChatRole,
+            content: msg.content,
             type: "text" as const,
           }))
         );
-      } catch (chatError) {
-        if (cancelled) {
-          return;
+
+        if (data.showWaitlist) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: createId(),
+              role: "assistant",
+              content: "waitlist",
+              type: "waitlist",
+            },
+          ]);
         }
 
+        return true;
+      } catch {
+        window.localStorage.removeItem("concierge_session_id");
+        return false;
+      }
+    }
+
+    async function startNewSession() {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const data = (await response.json()) as {
+        session_id?: string;
+        messages?: string[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not start chat.");
+      }
+
+      if (cancelled) return;
+
+      const newId = data.session_id ?? null;
+      setSessionId(newId);
+      if (newId) {
+        window.localStorage.setItem("concierge_session_id", newId);
+      }
+      setMessages(
+        (data.messages ?? []).map((content) => ({
+          id: createId(),
+          role: "assistant" as const,
+          content,
+          type: "text" as const,
+        }))
+      );
+    }
+
+    async function initializeChat() {
+      try {
+        const resumed = await tryResumeSession();
+        if (!resumed && !cancelled) {
+          await startNewSession();
+        }
+      } catch (chatError) {
+        if (cancelled) return;
         setMessages([
           {
             id: createId(),
@@ -287,7 +339,11 @@ export function ChatDemo() {
       }
 
       await sleep(600);
-      setSessionId(data.session_id ?? sessionId);
+      const updatedId = data.session_id ?? sessionId;
+      setSessionId(updatedId);
+      if (updatedId) {
+        window.localStorage.setItem("concierge_session_id", updatedId);
+      }
 
       setMessages((current) => {
         const additions: ChatMessage[] = (data.messages ?? []).map((content) => ({

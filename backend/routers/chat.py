@@ -28,6 +28,42 @@ class ChatResponse(BaseModel):
     progress: ChatProgress
 
 
+class SessionHistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
+class SessionResumeResponse(BaseModel):
+    session_id: str
+    messages: list[SessionHistoryMessage]
+    showWaitlist: bool
+    progress: ChatProgress
+
+
+@router.get("/api/chat/{session_id}", response_model=SessionResumeResponse)
+async def resume_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_session),
+) -> SessionResumeResponse:
+    session = await session_store.get(session_id, db)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+
+    missing = _agent._missing_fields(session.requirements)
+    collected = _agent._collected_fields(session.requirements)
+    ready = len(missing) == 0
+
+    return SessionResumeResponse(
+        session_id=session.session_id,
+        messages=[
+            SessionHistoryMessage(role=m.role, content=m.content)
+            for m in session.messages
+        ],
+        showWaitlist=ready,
+        progress=_build_progress(collected, missing),
+    )
+
+
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
