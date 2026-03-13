@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.agents.conversation_agent import ConversationAgent
+from backend.database.connection import get_session
 from backend.logging_config import get_logger
 from backend.services.chat_sessions import ChatProgress, SessionMessage, session_store
 
@@ -27,15 +29,18 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/api/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_session),
+) -> ChatResponse:
     if not request.session_id:
-        session = session_store.create()
+        session = await session_store.create(db)
         opening_messages = _agent.initial_messages()
         session.append_messages(
             SessionMessage(role="assistant", content=message)
             for message in opening_messages
         )
-        session_store.save(session)
+        await session_store.save(session, db)
         progress = _build_progress(
             _agent._collected_fields(session.requirements),
             _agent._missing_fields(session.requirements),
@@ -47,7 +52,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             progress=progress,
         )
 
-    session = session_store.get(request.session_id)
+    session = await session_store.get(request.session_id, db)
     if session is None:
         raise HTTPException(status_code=404, detail="Chat session not found.")
 
@@ -68,7 +73,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         SessionMessage(role="assistant", content=message)
         for message in result.messages
     )
-    session_store.save(session)
+    await session_store.save(session, db)
 
     logger.info(
         "conversation turn",
