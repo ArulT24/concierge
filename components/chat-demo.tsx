@@ -55,10 +55,11 @@ function TypingBubble() {
 
 type WaitlistFormProps = {
   disabled: boolean;
+  sessionId: string | null;
   onSuccess: (message: string) => void;
 };
 
-function WaitlistForm({ disabled, onSuccess }: WaitlistFormProps) {
+function WaitlistForm({ disabled, sessionId, onSuccess }: WaitlistFormProps) {
   const [email, setEmail] = useState("");
   const [city, setCity] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,7 +81,7 @@ function WaitlistForm({ disabled, onSuccess }: WaitlistFormProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, city }),
+        body: JSON.stringify({ session_id: sessionId, email, city }),
       });
 
       const data = (await response.json()) as { message?: string; error?: string };
@@ -339,7 +340,7 @@ export function ChatDemo() {
     ]);
 
     window.setTimeout(() => {
-      router.push("/bento-demo");
+      router.push(sessionId ? `/bento-demo?session=${sessionId}` : "/bento-demo");
     }, 900);
   }
 
@@ -380,6 +381,7 @@ export function ChatDemo() {
                   <WaitlistForm
                     key={message.id}
                     disabled={waitlistSubmitted}
+                    sessionId={sessionId}
                     onSuccess={handleWaitlistSuccess}
                   />
                 );

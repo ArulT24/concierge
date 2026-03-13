@@ -10,6 +10,7 @@ from backend.config import get_settings
 from backend.database.connection import dispose_engine, get_engine
 from backend.logging_config import get_logger, setup_logging
 from backend.routers.chat import router as chat_router
+from backend.routers.waitlist import router as waitlist_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -46,6 +47,7 @@ app.add_middleware(
 
 
 app.include_router(chat_router)
+app.include_router(waitlist_router)
 
 
 @app.get("/health")

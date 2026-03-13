@@ -31,6 +31,8 @@ CREATE TYPE call_status AS ENUM (
 CREATE TABLE events (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_phone    TEXT        NOT NULL,
+    email         TEXT,
+    city          TEXT,
     event_type    TEXT        NOT NULL DEFAULT 'birthday_party',
     status        event_status NOT NULL DEFAULT 'intake',
     requirements  JSONB       NOT NULL DEFAULT '{}',

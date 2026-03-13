@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Aperture,
   Lock,
@@ -42,9 +42,118 @@ const getRootTheme = (): ThemeMode => {
   return "light";
 };
 
-function FeaturesSectionMinimal() {
+type PartyRequirements = {
+  child_name?: string;
+  child_age?: number;
+  event_date?: string;
+  event_time?: string;
+  guest_count?: number;
+  zip_code?: string;
+  theme?: string;
+  venue_preferences?: string;
+  food_preferences?: string;
+  snack_preferences?: string;
+  decoration_preferences?: string;
+  entertainment_preferences?: string;
+  dietary_restrictions?: string[];
+  budget_low?: number;
+  budget_high?: number;
+  notes?: string;
+};
+
+function formatDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
+}
+
+function formatTime(timeStr: string): string {
+  try {
+    const clean = timeStr.replace("Z", "").replace("z", "");
+    const [hours, minutes] = clean.split(":").map(Number);
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const h = hours % 12 || 12;
+    return `${h}:${String(minutes).padStart(2, "0")} ${ampm}`;
+  } catch {
+    return timeStr;
+  }
+}
+
+function formatBudget(low?: number, high?: number): string {
+  if (low && high) return `$${low} to $${high}`;
+  if (low) return `around $${low}`;
+  if (high) return `up to $${high}`;
+  return "";
+}
+
+function buildPartySummary(req: PartyRequirements): string {
+  const sentences: string[] = [];
+
+  const nameAge = req.child_name && req.child_age
+    ? `${req.child_name} is turning ${req.child_age}`
+    : req.child_name
+      ? `A birthday party for ${req.child_name}`
+      : req.child_age
+        ? `A birthday party for a ${req.child_age}-year-old`
+        : "A birthday party";
+
+  const themePart = req.theme ? ` with a ${req.theme} theme` : "";
+  sentences.push(`${nameAge}${themePart}!`);
+
+  const when: string[] = [];
+  if (req.event_date) when.push(formatDate(req.event_date));
+  if (req.event_time) when.push(`at ${formatTime(req.event_time)}`);
+  if (req.zip_code) when.push(`near ${req.zip_code}`);
+  if (when.length > 0) {
+    sentences.push(`The party is planned for ${when.join(" ")}.`);
+  }
+
+  if (req.guest_count) {
+    sentences.push(`We're expecting around ${req.guest_count} guests.`);
+  }
+
+  if (req.venue_preferences) {
+    sentences.push(`Venue preference: ${req.venue_preferences}.`);
+  }
+
+  if (req.food_preferences) {
+    const snackPart = req.snack_preferences ? `, plus ${req.snack_preferences}` : "";
+    sentences.push(`For food, ${req.food_preferences}${snackPart}.`);
+  } else if (req.snack_preferences) {
+    sentences.push(`Snacks will include ${req.snack_preferences}.`);
+  }
+
+  if (req.entertainment_preferences && req.entertainment_preferences.toLowerCase() !== "none") {
+    sentences.push(`Entertainment includes ${req.entertainment_preferences}.`);
+  }
+
+  if (req.decoration_preferences && req.decoration_preferences.toLowerCase() !== "none") {
+    sentences.push(`Decorations: ${req.decoration_preferences}.`);
+  }
+
+  if (req.dietary_restrictions && req.dietary_restrictions.length > 0 && req.dietary_restrictions[0].toLowerCase() !== "none") {
+    sentences.push(`Dietary considerations: ${req.dietary_restrictions.join(", ")}.`);
+  }
+
+  const budget = formatBudget(req.budget_low, req.budget_high);
+  if (budget) {
+    sentences.push(`Budget is ${budget}.`);
+  }
+
+  if (req.notes && req.notes.toLowerCase() !== "none") {
+    sentences.push(req.notes);
+  }
+
+  return sentences.join(" ");
+}
+
+function FeaturesSectionMinimal({ sessionId }: { sessionId?: string | null }) {
   const [theme, setTheme] = useState<ThemeMode>(() => getRootTheme());
   const [sectionVisible, setSectionVisible] = useState(false);
+  const [partyInfo, setPartyInfo] = useState<string | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -153,6 +262,26 @@ function FeaturesSectionMinimal() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+
+    async function fetchPartyDetails() {
+      try {
+        const response = await fetch(`/api/events/${sessionId}`);
+        const data = await response.json();
+        if (!cancelled && response.ok && data.requirements) {
+          setPartyInfo(buildPartySummary(data.requirements));
+        }
+      } catch {
+        // Silently fall back to default text
+      }
+    }
+
+    void fetchPartyDetails();
+    return () => { cancelled = true; };
+  }, [sessionId]);
+
   const toggleTheme = () => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
@@ -174,7 +303,7 @@ function FeaturesSectionMinimal() {
     {
       title: "Party Information",
       blurb:
-        "Football themed lunch picnic for 10 year old named Anant. Party will take place from 11am-2pm. There will be indian food, all vegetarian, and many snacks and appetizers. There will be a bouncy house and many football themed decorations. There will be a football themed red velvet cake along with football themed gift bags. There will be 30 total attendees, including 20 kids and 10 adults.",
+        partyInfo ?? "Loading your party details...",
       meta: "Overview",
       icon: Aperture,
       animation: "bento2-float 6s ease-in-out infinite",

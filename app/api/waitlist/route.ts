@@ -1,49 +1,33 @@
 import { NextResponse } from "next/server";
 
-type WaitlistPayload = {
-  email?: string;
-  city?: string;
-};
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as WaitlistPayload;
-    const email = body.email?.trim() ?? "";
-    const city = body.city?.trim() ?? "";
+    const body = await request.json();
 
-    if (!email || !city) {
+    const response = await fetch(`${BACKEND_URL}/api/waitlist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
       return NextResponse.json(
-        { error: "Email and city are required." },
-        { status: 400 }
+        { error: data.detail ?? "Waitlist request failed." },
+        { status: response.status }
       );
     }
 
-    if (!isValidEmail(email)) {
-      return NextResponse.json(
-        { error: "Please enter a valid email address." },
-        { status: 400 }
-      );
-    }
-
-    console.log("Waitlist signup", {
-      email,
-      city,
-      createdAt: new Date().toISOString(),
-    });
-
-    return NextResponse.json({
-      message: `Thanks! ${email} from ${city} is on the waitlist.`,
-    });
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Waitlist API error", error);
+    console.error("Waitlist API proxy error:", error);
 
     return NextResponse.json(
-      { error: "Could not save your waitlist request." },
-      { status: 500 }
+      { error: "Could not reach the backend. Make sure it is running." },
+      { status: 502 }
     );
   }
 }
