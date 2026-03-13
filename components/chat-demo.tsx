@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Mail, MapPin, Send, Sparkles } from "lucide-react";
 
@@ -24,10 +24,6 @@ type ChatMessage = {
   content: string;
   type?: ChatMessageType;
 };
-
-const INITIAL_MESSAGE =
-  "Hi! I can help plan your child's birthday party. I'll ask a few short questions so I can build a personalized plan.";
-const FIRST_QUESTION = "How old is your child turning?";
 
 function createId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -152,48 +148,79 @@ function WaitlistForm({ disabled, onSuccess }: WaitlistFormProps) {
 
 export function ChatDemo() {
   const router = useRouter();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: createId(),
-      role: "assistant",
-      content: INITIAL_MESSAGE,
-      type: "text",
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
-  const startRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  const textMessages = useMemo(
-    () => messages.filter((message) => message.type !== "waitlist"),
-    [messages]
-  );
   const waitlistVisible = messages.some((message) => message.type === "waitlist");
 
   useEffect(() => {
-    if (startRef.current) {
-      return;
+    let cancelled = false;
+
+    async function initializeChat() {
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+
+        const data = (await response.json()) as {
+          session_id?: string;
+          messages?: string[];
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Could not start chat.");
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        setSessionId(data.session_id ?? null);
+        setMessages(
+          (data.messages ?? []).map((content) => ({
+            id: createId(),
+            role: "assistant" as const,
+            content,
+            type: "text" as const,
+          }))
+        );
+      } catch (chatError) {
+        if (cancelled) {
+          return;
+        }
+
+        setMessages([
+          {
+            id: createId(),
+            role: "assistant",
+            content:
+              chatError instanceof Error
+                ? chatError.message
+                : "I couldn't start the planning chat.",
+            type: "text",
+          },
+        ]);
+      } finally {
+        if (!cancelled) {
+          setIsTyping(false);
+        }
+      }
     }
 
-    startRef.current = true;
+    void initializeChat();
 
-    const timeout = window.setTimeout(() => {
-      setMessages((current) => [
-        ...current,
-        {
-          id: createId(),
-          role: "assistant",
-          content: FIRST_QUESTION,
-          type: "text",
-        },
-      ]);
-      setIsTyping(false);
-    }, 900);
-
-    return () => window.clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -213,7 +240,13 @@ export function ChatDemo() {
 
     const trimmed = input.trim();
 
-    if (!trimmed || isSending || isTyping || (waitlistVisible && !waitlistSubmitted)) {
+    if (
+      !trimmed ||
+      !sessionId ||
+      isSending ||
+      isTyping ||
+      (waitlistVisible && !waitlistSubmitted)
+    ) {
       return;
     }
 
@@ -223,8 +256,6 @@ export function ChatDemo() {
       content: trimmed,
       type: "text",
     };
-
-    const nextMessages = [...textMessages, userMessage];
 
     setMessages((current) => [...current, userMessage]);
     setInput("");
@@ -238,11 +269,13 @@ export function ChatDemo() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages: nextMessages.map(({ role, content }) => ({ role, content })),
+          session_id: sessionId,
+          message: trimmed,
         }),
       });
 
       const data = (await response.json()) as {
+        session_id?: string;
         messages?: string[];
         showWaitlist?: boolean;
         error?: string;
@@ -253,6 +286,7 @@ export function ChatDemo() {
       }
 
       await sleep(600);
+      setSessionId(data.session_id ?? sessionId);
 
       setMessages((current) => {
         const additions: ChatMessage[] = (data.messages ?? []).map((content) => ({
@@ -403,7 +437,12 @@ export function ChatDemo() {
                   placeholder="Type your answer..."
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  disabled={isSending || isTyping || (waitlistVisible && !waitlistSubmitted)}
+                  disabled={
+                    !sessionId ||
+                    isSending ||
+                    isTyping ||
+                    (waitlistVisible && !waitlistSubmitted)
+                  }
                   className="h-12 rounded-full bg-white/[0.06]"
                 />
               </div>
@@ -412,6 +451,7 @@ export function ChatDemo() {
                 size="icon"
                 disabled={
                   !input.trim() ||
+                  !sessionId ||
                   isSending ||
                   isTyping ||
                   (waitlistVisible && !waitlistSubmitted)

@@ -29,9 +29,14 @@ class EventRequirements(BaseModel):
     duration_hours: float = Field(default=2.0, ge=0.5, le=12.0)
     guest_count: int | None = Field(default=None, ge=1, le=500)
     zip_code: str = ""
+    venue_preferences: str = ""
     budget_low: float | None = None
     budget_high: float | None = None
     theme: str = ""
+    food_preferences: str = ""
+    snack_preferences: str = ""
+    decoration_preferences: str = ""
+    entertainment_preferences: str = ""
     dietary_restrictions: list[str] = Field(default_factory=list)
     notes: str = ""
 
