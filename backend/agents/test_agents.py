@@ -22,9 +22,15 @@ async def main() -> None:
     planner = PlanningAgent()
 
     messages: list[dict[str, str]] = []
+    requirements = None
 
     print("\n── Concierge Party Planner (test mode) ──")
     print("Type your messages below. Ctrl+C to exit.\n")
+
+    opening = conversation.initial_messages()
+    for msg in opening:
+        print(f"Agent: {msg}")
+        messages.append({"role": "assistant", "content": msg})
 
     while True:
         try:
@@ -38,13 +44,17 @@ async def main() -> None:
 
         messages.append({"role": "user", "content": user_input})
 
-        result = await conversation.run(messages)
+        result = await conversation.run(messages, current_requirements=requirements)
+
+        requirements = result.requirements
 
         for msg in result.messages:
             print(f"Agent: {msg}")
             messages.append({"role": "assistant", "content": msg})
 
-        if result.ready and result.requirements:
+        print(f"  [collected: {result.collected_fields} | missing: {result.missing_fields}]")
+
+        if result.ready:
             print("\n── Requirements gathered ──")
             print(result.requirements.model_dump_json(indent=2))
 

@@ -8,47 +8,70 @@ from backend.agents.base_agent import BaseAgent
 from backend.models.event_request import EventRequirements
 
 SYSTEM_PROMPT = """\
-You extract structured birthday-party requirements from a parent conversation.
+You are a friendly, experienced kids' birthday-party planner chatting with a parent.
 
-You will receive:
-1. The current known requirements as JSON
-2. The conversation transcript so far
+Your two jobs on every turn:
+1. Extract / update structured party requirements from the conversation so far.
+2. Write a short, warm reply that naturally moves the conversation forward.
 
-Your job:
-- Update the structured requirements using any information the parent has provided
-- Extract information even if it is given out of order
-- Preserve existing known data unless the parent clearly corrects it
-- If a field is unknown, leave it as null
-- Keep answers normalized and concise
-- Capture not just logistics but also planning preferences for venue, food, snacks, decorations, and entertainment
+### Conversation style
+- Sound like a real person, not a form. Vary your phrasing each time.
+- Acknowledge what the parent just told you before asking the next thing.
+- Ask only 1–2 questions per reply. Never interrogate.
+- If the parent volunteers extra info (snacks, theme, etc.) accept it gracefully — \
+don't re-ask for something they already answered.
+- Keep replies concise: 1–3 sentences max.
+- Use the child's name once you know it.
 
-Normalization rules:
-- child_name: child's first name if clear
-- child_age: integer age only
-- event_date: ISO date if a date is clear
-- event_time: ISO time if a start time is clear
-- duration_hours: set when duration is explicitly stated or strongly implied
-- guest_count: total guests including adults and kids
-- zip_code: zip code or short neighborhood/location string if provided
-- venue_preferences: preferred venue type, setting, or constraints
-- budget_low / budget_high: numeric budget bounds when mentioned
-- theme: short theme/interests summary
-- food_preferences: cuisine, catering, or meal style preferences
-- snack_preferences: snack/appetizer preferences if mentioned
-- decoration_preferences: decoration style, scale, or must-haves
-- entertainment_preferences: entertainment requests like bounce house, pinata, magician, crafts, etc.
-- dietary_restrictions: list values; if user says none, return ["none"]
-- notes: special requests or constraints; if user says none, return "none"
+### What to collect (in rough priority, but be flexible)
+child_name, child_age, event_date, event_time, guest_count, zip_code, \
+venue_preferences, budget_low, budget_high, theme, food_preferences, \
+snack_preferences, decoration_preferences, entertainment_preferences, \
+dietary_restrictions, notes
 
-Return only the structured fields. Do not generate conversational text.
+You do NOT need to ask about every single field — some are optional. \
+The required fields to finish intake are: child_name, child_age, event_date, \
+event_time, guest_count, zip_code, budget (low or high), and theme.
+
+When all required fields are filled, set ready=true and give a brief, \
+enthusiastic wrap-up message summarizing what you know.
+
+### Extraction rules
+- Normalize values (ISO dates/times, integers for counts/ages, etc.).
+- Preserve existing data unless the parent explicitly corrects it.
+- If a field is unknown, leave it null.
+- budget_low / budget_high: numeric dollar amounts.
+- dietary_restrictions: list; if parent says "none" return ["none"].
+- notes: catch-all for special requests; if parent says "none" return "none".
 """
 
+REQUIRED_FIELDS = {
+    "child_name",
+    "child_age",
+    "event_date",
+    "event_time",
+    "guest_count",
+    "zip_code",
+    "budget",
+    "theme",
+}
+
 INITIAL_MESSAGES = [
-    "Hi! I can help plan your child's birthday party.",
+    "Hey there! I'd love to help plan an awesome birthday party. "
+    "Tell me a little about your kiddo — what's their name and how old are they turning?"
 ]
 
 
-class RequirementExtraction(BaseModel):
+class ConversationTurn(BaseModel):
+    """Combined LLM output: extracted requirements + natural reply."""
+
+    reply: str = Field(
+        description="The next message to send to the parent. 1-3 sentences, warm and conversational."
+    )
+    ready: bool = Field(
+        default=False,
+        description="True when all required fields are filled and intake is complete.",
+    )
     child_name: str | None = None
     child_age: int | None = None
     event_date: date | None = None
@@ -73,7 +96,7 @@ class ConversationResult(BaseModel):
         description="True when enough information has been gathered to start planning"
     )
     messages: list[str] = Field(
-        description="Reply messages to send back to the user (usually just one)"
+        description="Reply messages to send back to the user"
     )
     requirements: EventRequirements = Field(
         description="Current best-known requirements after this turn"
@@ -88,18 +111,18 @@ class ConversationResult(BaseModel):
     )
 
 
-class ConversationAgent(BaseAgent[RequirementExtraction]):
+class ConversationAgent(BaseAgent[ConversationTurn]):
     @property
     def system_prompt(self) -> str:
         return SYSTEM_PROMPT
 
     @property
-    def output_model(self) -> type[RequirementExtraction]:
-        return RequirementExtraction
+    def output_model(self) -> type[ConversationTurn]:
+        return ConversationTurn
 
     @property
     def temperature(self) -> float:
-        return 0.2
+        return 0.8
 
     async def run(
         self,
@@ -107,101 +130,82 @@ class ConversationAgent(BaseAgent[RequirementExtraction]):
         current_requirements: EventRequirements | None = None,
     ) -> ConversationResult:
         requirements = current_requirements or EventRequirements()
-        update = await self._extract_update(messages, requirements)
-        merged = self._merge_requirements(requirements, update)
-        missing_fields = self._missing_fields(merged)
-        collected_fields = self._collected_fields(merged)
 
-        if missing_fields:
-            return ConversationResult(
-                ready=False,
-                messages=[self._next_question(merged, missing_fields[0])],
-                requirements=merged,
-                missing_fields=missing_fields,
-                collected_fields=collected_fields,
-            )
-
-        return ConversationResult(
-            ready=True,
-            messages=["Thanks! I have everything I need to start planning."],
-            requirements=merged,
-            missing_fields=[],
-            collected_fields=collected_fields,
-        )
-
-    def initial_messages(self) -> list[str]:
-        requirements = EventRequirements()
-        missing_fields = self._missing_fields(requirements)
-        opening = list(INITIAL_MESSAGES)
-        if missing_fields:
-            opening.append(self._next_question(requirements, missing_fields[0]))
-        return opening
-
-    async def _extract_update(
-        self,
-        messages: list[dict[str, str]],
-        current_requirements: EventRequirements,
-    ) -> RequirementExtraction:
         transcript = "\n".join(
-            f"{message['role'].title()}: {message['content']}" for message in messages
+            f"{m['role'].title()}: {m['content']}" for m in messages
         )
-        extraction_request = [
+        llm_messages = [
             {
                 "role": "user",
                 "content": (
                     "Current known requirements:\n"
-                    f"{current_requirements.model_dump_json(indent=2)}\n\n"
-                    "Conversation transcript:\n"
+                    f"{requirements.model_dump_json(indent=2)}\n\n"
+                    "Conversation so far:\n"
                     f"{transcript}\n\n"
-                    "Return the updated structured requirements only."
+                    "Respond with the updated requirements and your next reply."
                 ),
             }
         ]
-        return await super().run(extraction_request)
+
+        turn: ConversationTurn = await super().run(llm_messages)
+        merged = self._merge_requirements(requirements, turn)
+        missing = self._missing_fields(merged)
+        collected = self._collected_fields(merged)
+
+        return ConversationResult(
+            ready=turn.ready and len(missing) == 0,
+            messages=[turn.reply],
+            requirements=merged,
+            missing_fields=missing,
+            collected_fields=collected,
+        )
+
+    def initial_messages(self) -> list[str]:
+        return list(INITIAL_MESSAGES)
 
     def _merge_requirements(
         self,
         current: EventRequirements,
-        update: RequirementExtraction,
+        turn: ConversationTurn,
     ) -> EventRequirements:
         merged = current.model_copy(deep=True)
 
-        if update.child_name:
-            merged.child_name = update.child_name.strip()
-        if update.child_age is not None:
-            merged.child_age = update.child_age
-        if update.event_date is not None:
-            merged.event_date = update.event_date
-        if update.event_time is not None:
-            merged.event_time = update.event_time
-        if update.duration_hours is not None:
-            merged.duration_hours = update.duration_hours
-        if update.guest_count is not None:
-            merged.guest_count = update.guest_count
-        if update.zip_code:
-            merged.zip_code = update.zip_code.strip()
-        if update.venue_preferences:
-            merged.venue_preferences = update.venue_preferences.strip()
-        if update.budget_low is not None:
-            merged.budget_low = update.budget_low
-        if update.budget_high is not None:
-            merged.budget_high = update.budget_high
-        if update.theme:
-            merged.theme = update.theme.strip()
-        if update.food_preferences:
-            merged.food_preferences = update.food_preferences.strip()
-        if update.snack_preferences:
-            merged.snack_preferences = update.snack_preferences.strip()
-        if update.decoration_preferences:
-            merged.decoration_preferences = update.decoration_preferences.strip()
-        if update.entertainment_preferences:
-            merged.entertainment_preferences = update.entertainment_preferences.strip()
-        if update.dietary_restrictions is not None:
-            normalized = [item.strip() for item in update.dietary_restrictions if item.strip()]
+        if turn.child_name:
+            merged.child_name = turn.child_name.strip()
+        if turn.child_age is not None:
+            merged.child_age = turn.child_age
+        if turn.event_date is not None:
+            merged.event_date = turn.event_date
+        if turn.event_time is not None:
+            merged.event_time = turn.event_time
+        if turn.duration_hours is not None:
+            merged.duration_hours = turn.duration_hours
+        if turn.guest_count is not None:
+            merged.guest_count = turn.guest_count
+        if turn.zip_code:
+            merged.zip_code = turn.zip_code.strip()
+        if turn.venue_preferences:
+            merged.venue_preferences = turn.venue_preferences.strip()
+        if turn.budget_low is not None:
+            merged.budget_low = turn.budget_low
+        if turn.budget_high is not None:
+            merged.budget_high = turn.budget_high
+        if turn.theme:
+            merged.theme = turn.theme.strip()
+        if turn.food_preferences:
+            merged.food_preferences = turn.food_preferences.strip()
+        if turn.snack_preferences:
+            merged.snack_preferences = turn.snack_preferences.strip()
+        if turn.decoration_preferences:
+            merged.decoration_preferences = turn.decoration_preferences.strip()
+        if turn.entertainment_preferences:
+            merged.entertainment_preferences = turn.entertainment_preferences.strip()
+        if turn.dietary_restrictions is not None:
+            normalized = [item.strip() for item in turn.dietary_restrictions if item.strip()]
             if normalized:
                 merged.dietary_restrictions = normalized
-        if update.notes:
-            merged.notes = update.notes.strip()
+        if turn.notes:
+            merged.notes = turn.notes.strip()
 
         return merged
 
@@ -242,86 +246,21 @@ class ConversationAgent(BaseAgent[RequirementExtraction]):
     def _missing_fields(self, requirements: EventRequirements) -> list[str]:
         missing: list[str] = []
 
-        if not requirements.child_name.strip() or requirements.child_age is None:
-            missing.append("child_profile")
-        if requirements.event_date is None or requirements.event_time is None:
-            missing.append("schedule")
+        if not requirements.child_name.strip():
+            missing.append("child_name")
+        if requirements.child_age is None:
+            missing.append("child_age")
+        if requirements.event_date is None:
+            missing.append("event_date")
+        if requirements.event_time is None:
+            missing.append("event_time")
         if requirements.guest_count is None:
             missing.append("guest_count")
         if not requirements.zip_code.strip():
-            missing.append("location")
-        if not requirements.venue_preferences.strip():
-            missing.append("venue_preferences")
+            missing.append("zip_code")
         if requirements.budget_low is None and requirements.budget_high is None:
             missing.append("budget")
         if not requirements.theme.strip():
             missing.append("theme")
-        if not requirements.food_preferences.strip():
-            missing.append("food_preferences")
-        if not requirements.snack_preferences.strip():
-            missing.append("snack_preferences")
-        if not requirements.decoration_preferences.strip():
-            missing.append("decoration_preferences")
-        if not requirements.entertainment_preferences.strip():
-            missing.append("entertainment_preferences")
-        if not requirements.dietary_restrictions:
-            missing.append("dietary_restrictions")
-        if not requirements.notes.strip():
-            missing.append("special_requests")
 
         return missing
-
-    def _next_question(
-        self,
-        requirements: EventRequirements,
-        missing_field: str,
-    ) -> str:
-        if missing_field == "child_profile":
-            if requirements.child_age is not None and not requirements.child_name.strip():
-                return "What's your child's name?"
-            if requirements.child_name.strip() and requirements.child_age is None:
-                return f"How old is {requirements.child_name} turning?"
-            return "What's your child's name and how old are they turning?"
-
-        if missing_field == "schedule":
-            if requirements.event_date is not None and requirements.event_time is None:
-                return "What time would you like the party to start?"
-            if requirements.event_date is None and requirements.event_time is not None:
-                return "What date would you like the party to happen?"
-            return "What date and time would you like the party to happen?"
-
-        if missing_field == "guest_count":
-            return "About how many total guests are you expecting, including kids and adults?"
-
-        if missing_field == "location":
-            return "What zip code or neighborhood should I plan around?"
-
-        if missing_field == "venue_preferences":
-            return "Do you already have a venue in mind, or should I plan for something like a park, indoor play place, backyard, or banquet space?"
-
-        if missing_field == "budget":
-            return "What budget range would you like to stay within?"
-
-        if missing_field == "theme":
-            return "Do you have a theme or any specific interests your child would love?"
-
-        if missing_field == "food_preferences":
-            if requirements.snack_preferences.strip():
-                return "What kind of food or cuisine would you like for the party?"
-            return "What kind of food or cuisine would you like, and do you want catering or something simpler?"
-
-        if missing_field == "snack_preferences":
-            if requirements.food_preferences.strip():
-                return "Do you want any snacks or appetizers in addition to the main food?"
-            return "Do you want snacks or appetizers too, and if so what kind?"
-
-        if missing_field == "decoration_preferences":
-            return "What kind of decorations are you imagining, like simple balloons, themed table decor, or a fuller setup?"
-
-        if missing_field == "entertainment_preferences":
-            return "Do you want any entertainment, like a bounce house, pinata, magician, games, or crafts?"
-
-        if missing_field == "dietary_restrictions":
-            return "Any dietary restrictions or allergies I should plan around? If none, just say none."
-
-        return "Anything else I should know, like venue preferences, accessibility needs, or special requests? If not, just say none."
