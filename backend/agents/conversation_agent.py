@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 from backend.agents.base_agent import BaseAgent
 from backend.models.event_request import EventRequirements
 
-SYSTEM_PROMPT = """\
+SYSTEM_PROMPT_TEMPLATE = """\
 You are a friendly, experienced kids' birthday-party planner chatting with a parent.
+Today's date is {today}.
 
 Your two jobs on every turn:
 1. Extract / update structured party requirements from the conversation so far.
@@ -114,7 +115,8 @@ class ConversationResult(BaseModel):
 class ConversationAgent(BaseAgent[ConversationTurn]):
     @property
     def system_prompt(self) -> str:
-        return SYSTEM_PROMPT
+        from datetime import date as _date
+        return SYSTEM_PROMPT_TEMPLATE.format(today=_date.today().isoformat())
 
     @property
     def output_model(self) -> type[ConversationTurn]:

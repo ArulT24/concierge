@@ -1,18 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, Mail, MapPin, Send, Sparkles } from "lucide-react";
+import { Mail, RotateCcw, Send, Sparkles } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type ChatRole = "assistant" | "user";
@@ -39,14 +30,38 @@ function sleep(ms: number) {
   });
 }
 
+const FETCH_TIMEOUT_MS = 30_000;
+
+async function fetchWithTimeout(
+  url: string,
+  options?: RequestInit
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(
+        "The server is taking too long to respond. Please try again in a moment."
+      );
+    }
+    throw new Error(
+      "Couldn't connect to the server. Please check your connection and try again."
+    );
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 function TypingBubble() {
   return (
     <div className="message-fade-in flex justify-start">
-      <div className="max-w-[85%] rounded-[24px] rounded-tl-md border border-white/10 bg-white/[0.08] px-4 py-3 shadow-lg">
+      <div className="rounded-2xl rounded-tl-sm border border-white/[0.06] bg-white/[0.04] px-4 py-3">
         <div className="flex items-center gap-1.5">
-          <span className="typing-dot h-2 w-2 rounded-full bg-slate-200" />
-          <span className="typing-dot h-2 w-2 rounded-full bg-slate-200" />
-          <span className="typing-dot h-2 w-2 rounded-full bg-slate-200" />
+          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
+          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
         </div>
       </div>
     </div>
@@ -104,45 +119,51 @@ function WaitlistForm({ disabled, sessionId, onSuccess }: WaitlistFormProps) {
 
   return (
     <div className="message-fade-in flex justify-start">
-      <Card className="w-full max-w-md border-violet-400/20 bg-slate-950/70">
-        <CardHeader className="pb-4">
-          <CardTitle className="flex items-center gap-2 text-base text-white">
-            <Mail className="h-4 w-4 text-violet-300" />
-            Join the waitlist
-          </CardTitle>
-          <CardDescription>
-            Get early access when the full planning assistant launches.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-3" onSubmit={handleSubmit}>
-            <Input
-              type="email"
-              placeholder="Parent email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={disabled || isSubmitting}
-              required
-            />
-            <Input
-              type="text"
-              placeholder="City"
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-              disabled={disabled || isSubmitting}
-              required
-            />
-            {error ? <p className="text-sm text-rose-300">{error}</p> : null}
-            <Button
-              type="submit"
-              className="w-full bg-violet-500 text-white hover:bg-violet-400"
-              disabled={disabled || isSubmitting}
-            >
-              {isSubmitting ? "Joining..." : "Join Waitlist"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+        <div className="border-b border-white/[0.06] px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
+              <Mail className="h-4 w-4 text-violet-300" />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold tracking-tight text-white">
+                Join the waitlist
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Get early access when we launch
+              </p>
+            </div>
+          </div>
+        </div>
+        <form className="space-y-3 px-5 py-4" onSubmit={handleSubmit}>
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            disabled={disabled || isSubmitting}
+            required
+            className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
+          />
+          <input
+            type="text"
+            placeholder="City"
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+            disabled={disabled || isSubmitting}
+            required
+            className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
+          />
+          {error ? <p className="text-[13px] text-rose-400">{error}</p> : null}
+          <button
+            type="submit"
+            disabled={disabled || isSubmitting}
+            className="flex h-10 w-full items-center justify-center rounded-xl bg-violet-500 text-sm font-medium text-white transition-colors hover:bg-violet-400 disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isSubmitting ? "Joining..." : "Join Waitlist"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -155,8 +176,20 @@ export function ChatDemo() {
   const [isTyping, setIsTyping] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [chatKey, setChatKey] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const waitlistVisible = messages.some((message) => message.type === "waitlist");
+
+  const startNewChat = useCallback(() => {
+    window.localStorage.removeItem("concierge_session_id");
+    setMessages([]);
+    setSessionId(null);
+    setInput("");
+    setIsTyping(true);
+    setIsSending(false);
+    setWaitlistSubmitted(false);
+    setChatKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,7 +199,7 @@ export function ChatDemo() {
         const savedId = window.localStorage.getItem("concierge_session_id");
         if (!savedId) return false;
 
-        const response = await fetch(`/api/chat/${savedId}`);
+        const response = await fetchWithTimeout(`/api/chat/${savedId}`);
         if (!response.ok) {
           window.localStorage.removeItem("concierge_session_id");
           return false;
@@ -210,7 +243,7 @@ export function ChatDemo() {
     }
 
     async function startNewSession() {
-      const response = await fetch("/api/chat", {
+      const response = await fetchWithTimeout("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -274,7 +307,7 @@ export function ChatDemo() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [chatKey]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -316,7 +349,7 @@ export function ChatDemo() {
     setIsTyping(true);
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetchWithTimeout("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -401,137 +434,124 @@ export function ChatDemo() {
   }
 
   return (
-    <Card className="w-full max-w-4xl overflow-hidden border-white/10 bg-slate-950/70">
-      <CardHeader className="border-b border-white/10 pb-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.24em] text-slate-400">
-              <Sparkles className="h-4 w-4 text-violet-300" />
-              Product demo
-            </div>
-            <CardTitle className="text-xl text-white">
-              Chat with your AI birthday party planner
-            </CardTitle>
-            <CardDescription className="mt-2 max-w-2xl">
-              Answer a few quick questions, tell the planner what you want, and
-              join the waitlist without leaving the conversation.
-            </CardDescription>
+    <div className="w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
+            <Sparkles className="h-4 w-4 text-violet-300" />
           </div>
-
-          <div className="flex items-center gap-2 self-start rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-medium text-emerald-200">
-            <span className="h-2 w-2 rounded-full bg-emerald-300" />
-            Live demo
+          <div>
+            <p className="text-[13px] font-semibold tracking-tight text-white sm:text-sm">
+              Party Planner
+            </p>
+            <p className="hidden text-[11px] text-slate-500 sm:block">
+              Tell us about the party you have in mind
+            </p>
           </div>
         </div>
-      </CardHeader>
 
-      <CardContent className="p-0">
-        <div className="grid min-h-[62vh] grid-rows-[1fr_auto]">
-          <div
-            ref={scrollRef}
-            className="space-y-4 overflow-y-auto px-4 py-5 sm:px-6"
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={startNewChat}
+            disabled={isTyping || isSending}
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white disabled:pointer-events-none disabled:opacity-40"
           >
-            {messages.map((message) => {
-              if (message.type === "waitlist") {
-                return (
-                  <WaitlistForm
-                    key={message.id}
-                    disabled={waitlistSubmitted}
-                    sessionId={sessionId}
-                    onSuccess={handleWaitlistSuccess}
-                  />
-                );
-              }
+            <RotateCcw className="h-3 w-3" />
+            New chat
+          </button>
+          <div className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Live
+          </div>
+        </div>
+      </div>
 
-              const isAssistant = message.role === "assistant";
-
+      {/* Messages */}
+      <div className="grid min-h-[50vh] grid-rows-[1fr_auto] sm:min-h-[58vh]">
+        <div
+          ref={scrollRef}
+          className="space-y-3 overflow-y-auto px-4 py-4 sm:space-y-4 sm:px-5"
+        >
+          {messages.map((message) => {
+            if (message.type === "waitlist") {
               return (
-                <div
+                <WaitlistForm
                   key={message.id}
+                  disabled={waitlistSubmitted}
+                  sessionId={sessionId}
+                  onSuccess={handleWaitlistSuccess}
+                />
+              );
+            }
+
+            const isAssistant = message.role === "assistant";
+
+            return (
+              <div
+                key={message.id}
+                className={cn(
+                  "message-fade-in flex",
+                  isAssistant ? "justify-start" : "justify-end"
+                )}
+              >
+                <div
                   className={cn(
-                    "message-fade-in flex",
-                    isAssistant ? "justify-start" : "justify-end"
+                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed sm:text-sm",
+                    isAssistant
+                      ? "rounded-tl-sm border border-white/[0.06] bg-white/[0.04] text-slate-200"
+                      : "rounded-tr-sm bg-violet-500 text-white"
                   )}
                 >
-                  <div
-                    className={cn(
-                      "max-w-[85%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-lg sm:text-[15px]",
-                      isAssistant
-                        ? "rounded-tl-md border border-white/10 bg-white/[0.08] text-slate-100"
-                        : "rounded-tr-md bg-violet-500 text-white"
-                    )}
-                  >
-                    <div className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-white/60">
-                      {isAssistant ? (
-                        <>
-                          <Bot className="h-3.5 w-3.5" />
-                          Planner AI
-                        </>
-                      ) : (
-                        "You"
-                      )}
-                    </div>
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  </div>
+                  <p className="whitespace-pre-wrap">{message.content}</p>
                 </div>
-              );
-            })}
-
-            {isTyping ? <TypingBubble /> : null}
-          </div>
-
-          <form
-            onSubmit={handleSend}
-            className="border-t border-white/10 bg-slate-950/60 p-4 sm:p-5"
-          >
-            <div className="flex items-end gap-3">
-              <div className="flex-1">
-                <label htmlFor="chat-input" className="sr-only">
-                  Reply to the AI planner
-                </label>
-                <Input
-                  id="chat-input"
-                  type="text"
-                  placeholder="Type your answer..."
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  disabled={
-                    !sessionId ||
-                    isSending ||
-                    isTyping ||
-                    (waitlistVisible && !waitlistSubmitted)
-                  }
-                  className="h-12 rounded-full bg-white/[0.06]"
-                />
               </div>
-              <Button
-                type="submit"
-                size="icon"
-                disabled={
-                  !input.trim() ||
-                  !sessionId ||
-                  isSending ||
-                  isTyping ||
-                  (waitlistVisible && !waitlistSubmitted)
-                }
-                className="h-12 w-12 rounded-full bg-violet-500 text-white hover:bg-violet-400"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-              <span className="inline-flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5" />
-                Personalized planning intake
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" />
-                Waitlist form appears in chat
-              </span>
-            </div>
-          </form>
+            );
+          })}
+
+          {isTyping ? <TypingBubble /> : null}
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Input */}
+        <form
+          onSubmit={handleSend}
+          className="border-t border-white/[0.06] px-4 py-3 sm:px-5 sm:py-4"
+        >
+          <div className="flex items-center gap-2.5">
+            <label htmlFor="chat-input" className="sr-only">
+              Reply to the AI planner
+            </label>
+            <input
+              id="chat-input"
+              type="text"
+              placeholder="Type your answer..."
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={
+                !sessionId ||
+                isSending ||
+                isTyping ||
+                (waitlistVisible && !waitlistSubmitted)
+              }
+              className="flex h-11 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={
+                !input.trim() ||
+                !sessionId ||
+                isSending ||
+                isTyping ||
+                (waitlistVisible && !waitlistSubmitted)
+              }
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-400 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

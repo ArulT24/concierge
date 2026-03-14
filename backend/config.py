@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # ── SerpAPI ──────────────────────────────────────
     serpapi_key: str = ""
 
+    # ── CORS ──────────────────────────────────────
+    cors_origins: str = ""
+
     @property
     def sync_database_url(self) -> str:
         """Swap asyncpg driver for psycopg2 (Alembic, Celery, etc.)."""
