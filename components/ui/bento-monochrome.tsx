@@ -1,46 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Aperture,
-  Lock,
+  Calendar,
+  Clock,
+  DollarSign,
+  MapPin,
+  Music,
+  Palette,
+  Sparkles,
+  Users,
+  UtensilsCrossed,
+  PartyPopper,
+  ArrowLeft,
 } from "lucide-react";
-
-type ThemeMode = "light" | "dark";
-
-type FeatureItem = {
-  title: string;
-  blurb: string;
-  meta: string;
-  icon: typeof Aperture;
-  animation: string;
-  locked?: boolean;
-};
-
-type BentoItemProps = {
-  feature: FeatureItem;
-  span?: string;
-  theme?: ThemeMode;
-  index?: number;
-  isVisible?: boolean;
-};
-
-const getRootTheme = (): ThemeMode => {
-  if (typeof document !== "undefined") {
-    const root = document.documentElement;
-    if (root.classList.contains("dark")) return "dark";
-    if (root.getAttribute("data-theme") === "dark" || root.dataset?.theme === "dark") {
-      return "dark";
-    }
-    if (root.classList.contains("light")) return "light";
-  }
-
-  if (typeof window !== "undefined" && window.matchMedia) {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-
-  return "light";
-};
+import Link from "next/link";
 
 type PartyRequirements = {
   child_name?: string;
@@ -64,7 +38,11 @@ type PartyRequirements = {
 function formatDate(dateStr: string): string {
   try {
     const d = new Date(dateStr + "T00:00:00");
-    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "long",
+      day: "numeric",
+    });
   } catch {
     return dateStr;
   }
@@ -72,7 +50,7 @@ function formatDate(dateStr: string): string {
 
 function formatTime(timeStr: string): string {
   try {
-    const clean = timeStr.replace("Z", "").replace("z", "");
+    const clean = timeStr.replace(/[Zz]/, "");
     const [hours, minutes] = clean.split(":").map(Number);
     const ampm = hours >= 12 ? "PM" : "AM";
     const h = hours % 12 || 12;
@@ -83,182 +61,152 @@ function formatTime(timeStr: string): string {
 }
 
 function formatBudget(low?: number, high?: number): string {
-  if (low && high) return `$${low} to $${high}`;
-  if (low) return `around $${low}`;
-  if (high) return `up to $${high}`;
+  if (low && high) return `$${low} – $${high}`;
+  if (low) return `~$${low}`;
+  if (high) return `Up to $${high}`;
   return "";
 }
 
-function buildPartySummary(req: PartyRequirements): string {
-  const sentences: string[] = [];
+type DetailRowProps = {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+};
 
-  const nameAge = req.child_name && req.child_age
-    ? `${req.child_name} is turning ${req.child_age}`
-    : req.child_name
-      ? `A birthday party for ${req.child_name}`
-      : req.child_age
-        ? `A birthday party for a ${req.child_age}-year-old`
-        : "A birthday party";
-
-  const themePart = req.theme ? ` with a ${req.theme} theme` : "";
-  sentences.push(`${nameAge}${themePart}!`);
-
-  const when: string[] = [];
-  if (req.event_date) when.push(formatDate(req.event_date));
-  if (req.event_time) when.push(`at ${formatTime(req.event_time)}`);
-  if (req.zip_code) when.push(`near ${req.zip_code}`);
-  if (when.length > 0) {
-    sentences.push(`The party is planned for ${when.join(" ")}.`);
-  }
-
-  if (req.guest_count) {
-    sentences.push(`We're expecting around ${req.guest_count} guests.`);
-  }
-
-  if (req.venue_preferences) {
-    sentences.push(`Venue preference: ${req.venue_preferences}.`);
-  }
-
-  if (req.food_preferences) {
-    const snackPart = req.snack_preferences ? `, plus ${req.snack_preferences}` : "";
-    sentences.push(`For food, ${req.food_preferences}${snackPart}.`);
-  } else if (req.snack_preferences) {
-    sentences.push(`Snacks will include ${req.snack_preferences}.`);
-  }
-
-  if (req.entertainment_preferences && req.entertainment_preferences.toLowerCase() !== "none") {
-    sentences.push(`Entertainment includes ${req.entertainment_preferences}.`);
-  }
-
-  if (req.decoration_preferences && req.decoration_preferences.toLowerCase() !== "none") {
-    sentences.push(`Decorations: ${req.decoration_preferences}.`);
-  }
-
-  if (req.dietary_restrictions && req.dietary_restrictions.length > 0 && req.dietary_restrictions[0].toLowerCase() !== "none") {
-    sentences.push(`Dietary considerations: ${req.dietary_restrictions.join(", ")}.`);
-  }
-
-  const budget = formatBudget(req.budget_low, req.budget_high);
-  if (budget) {
-    sentences.push(`Budget is ${budget}.`);
-  }
-
-  if (req.notes && req.notes.toLowerCase() !== "none") {
-    sentences.push(req.notes);
-  }
-
-  return sentences.join(" ");
+function DetailRow({ icon: Icon, label, value }: DetailRowProps) {
+  return (
+    <div className="flex items-start gap-3 py-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] ring-1 ring-white/10">
+        <Icon className="h-4 w-4 text-violet-300" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-[0.15em] text-slate-400">
+          {label}
+        </p>
+        <p className="mt-0.5 text-sm leading-snug text-slate-100">{value}</p>
+      </div>
+    </div>
+  );
 }
 
-function FeaturesSectionMinimal({ sessionId }: { sessionId?: string | null }) {
-  const [theme, setTheme] = useState<ThemeMode>(() => getRootTheme());
-  const [sectionVisible, setSectionVisible] = useState(false);
-  const [partyInfo, setPartyInfo] = useState<string | null>(null);
+type CategoryCardProps = {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  accentFrom: string;
+  accentTo: string;
+  delay: number;
+  visible: boolean;
+};
+
+function CategoryCard({
+  title,
+  subtitle,
+  icon: Icon,
+  accentFrom,
+  accentTo,
+  delay,
+  visible,
+}: CategoryCardProps) {
+  return (
+    <div
+      className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-sm transition-all duration-300 hover:border-white/[0.14] hover:bg-white/[0.05]"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(24px)",
+        transition: `opacity 0.6s ease ${delay}ms, transform 0.6s ease ${delay}ms`,
+      }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.07] transition-opacity duration-300 group-hover:opacity-[0.12]"
+        style={{
+          background: `linear-gradient(135deg, ${accentFrom}, ${accentTo})`,
+        }}
+      />
+
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div
+          className="absolute inset-0 -translate-x-full"
+          style={{
+            background:
+              "linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent)",
+            animation: "shimmer 2.5s ease-in-out infinite",
+            animationDelay: `${delay + 400}ms`,
+          }}
+        />
+      </div>
+
+      <div className="flex items-start justify-between">
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-xl ring-1 ring-white/10"
+          style={{
+            background: `linear-gradient(135deg, ${accentFrom}22, ${accentTo}11)`,
+          }}
+        >
+          <Icon className="h-5 w-5 text-white/80" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{
+              backgroundColor: accentFrom,
+              animation: "pulse-dot 2s ease-in-out infinite",
+            }}
+          />
+          <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-slate-500">
+            Searching
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <h3 className="text-[15px] font-semibold tracking-tight text-white">
+          {title}
+        </h3>
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-400">
+          {subtitle}
+        </p>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="h-2 w-3/4 rounded-full bg-white/[0.06]">
+          <div
+            className="h-full rounded-full opacity-60"
+            style={{
+              width: "40%",
+              background: `linear-gradient(90deg, ${accentFrom}, ${accentTo})`,
+              animation: "pulse-dot 2s ease-in-out infinite",
+            }}
+          />
+        </div>
+        <div className="h-2 w-1/2 rounded-full bg-white/[0.06]" />
+      </div>
+    </div>
+  );
+}
+
+function FeaturesSectionMinimal({
+  sessionId,
+}: {
+  sessionId?: string | null;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [party, setParty] = useState<PartyRequirements | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
-    const id = "bento2-animations";
-    if (document.getElementById(id)) return;
-
-    const style = document.createElement("style");
-    style.id = id;
-    style.innerHTML = `
-      @keyframes bento2-float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-6%); }
-      }
-      @keyframes bento2-pulse {
-        0%, 100% { transform: scale(1); opacity: 0.85; }
-        50% { transform: scale(1.08); opacity: 1; }
-      }
-      @keyframes bento2-tilt {
-        0% { transform: rotate(-2deg); }
-        50% { transform: rotate(2deg); }
-        100% { transform: rotate(-2deg); }
-      }
-      @keyframes bento2-drift {
-        0%, 100% { transform: translate3d(0, 0, 0); }
-        50% { transform: translate3d(6%, -6%, 0); }
-      }
-      @keyframes bento2-glow {
-        0%, 100% { opacity: 0.6; filter: drop-shadow(0 0 0 rgba(0,0,0,0.4)); }
-        50% { opacity: 1; filter: drop-shadow(0 0 6px rgba(0,0,0,0.2)); }
-      }
-      @keyframes bento2-intro {
-        0% { opacity: 0; transform: translate3d(0, 28px, 0); }
-        100% { opacity: 1; transform: translate3d(0, 0, 0); }
-      }
-      @keyframes bento2-card {
-        0% { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.96); }
-        100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-      }
-    `;
-
-    document.head.appendChild(style);
-
-    return () => {
-      style.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-
-    const syncTheme = () => {
-      const next = getRootTheme();
-      setTheme((prev) => (prev === next ? prev : next));
-    };
-
-    syncTheme();
-
-    const observer = new MutationObserver(syncTheme);
-    observer.observe(root, { attributes: true, attributeFilter: ["class", "data-theme"] });
-
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "bento-theme") syncTheme();
-    };
-
-    const media =
-      typeof window !== "undefined" && window.matchMedia
-        ? window.matchMedia("(prefers-color-scheme: dark)")
-        : null;
-
-    const handleMediaChange = () => syncTheme();
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", handleStorage);
-    }
-    media?.addEventListener("change", handleMediaChange);
-
-    return () => {
-      observer.disconnect();
-      if (typeof window !== "undefined") {
-        window.removeEventListener("storage", handleStorage);
-      }
-      media?.removeEventListener("change", handleMediaChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!sectionRef.current || typeof window === "undefined") return;
-
+    if (!sectionRef.current) return;
     const node = sectionRef.current;
     const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setSectionVisible(true);
-            observer.disconnect();
-          }
-        });
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
       },
-      { threshold: 0.25 }
+      { threshold: 0.15 }
     );
-
     observer.observe(node);
-
     return () => observer.disconnect();
   }, []);
 
@@ -271,237 +219,253 @@ function FeaturesSectionMinimal({ sessionId }: { sessionId?: string | null }) {
         const response = await fetch(`/api/events/${sessionId}`);
         const data = await response.json();
         if (!cancelled && response.ok && data.requirements) {
-          setPartyInfo(buildPartySummary(data.requirements));
+          setParty(data.requirements);
         }
       } catch {
-        // Silently fall back to default text
+        /* fall back to loading state */
       }
     }
 
     void fetchPartyDetails();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId]);
 
-  const toggleTheme = () => {
-    if (typeof document === "undefined") return;
-    const root = document.documentElement;
-    const current = getRootTheme();
-    const next: ThemeMode = current === "dark" ? "light" : "dark";
-    root.classList.toggle("dark", next === "dark");
-    root.classList.toggle("light", next === "light");
-    root.setAttribute("data-theme", next);
-    setTheme(next);
+  const childName = party?.child_name;
+  const headline = childName
+    ? `We're planning ${childName}'s party`
+    : "We're planning your party";
 
-    try {
-      window.localStorage?.setItem("bento-theme", next);
-    } catch {
-      // Ignore localStorage failures in restricted environments.
-    }
-  };
-
-  const features: FeatureItem[] = [
-    {
-      title: "Party Information",
-      blurb:
-        partyInfo ?? "Loading your party details...",
-      meta: "Overview",
-      icon: Aperture,
-      animation: "bento2-float 6s ease-in-out infinite",
-    },
+  const categories: CategoryCardProps[] = [
     {
       title: "Venue",
-      blurb: "Calling venues right now!",
-      meta: "Locked",
-      icon: Lock,
-      animation: "bento2-pulse 4s ease-in-out infinite",
-      locked: true,
+      subtitle: party?.venue_preferences
+        ? `Looking for ${party.venue_preferences} options nearby`
+        : "Finding the perfect spot for the celebration",
+      icon: MapPin,
+      accentFrom: "#3b82f6",
+      accentTo: "#6366f1",
+      delay: 200,
+      visible,
     },
     {
       title: "Entertainment",
-      blurb: "Entertainment isn't going to find itself!",
-      meta: "Locked",
-      icon: Lock,
-      animation: "bento2-tilt 5.5s ease-in-out infinite",
-      locked: true,
+      subtitle: party?.entertainment_preferences
+        ? `Searching for ${party.entertainment_preferences}`
+        : "Discovering fun activities and performers",
+      icon: Music,
+      accentFrom: "#f59e0b",
+      accentTo: "#f97316",
+      delay: 320,
+      visible,
     },
     {
       title: "Catering",
-      blurb: "On the phone with chefs!",
-      meta: "Locked",
-      icon: Lock,
-      animation: "bento2-drift 8s ease-in-out infinite",
-      locked: true,
+      subtitle: party?.food_preferences
+        ? `Finding ${party.food_preferences} catering options`
+        : "Reaching out to caterers and chefs",
+      icon: UtensilsCrossed,
+      accentFrom: "#f43f5e",
+      accentTo: "#e11d48",
+      delay: 440,
+      visible,
     },
     {
       title: "Decorations",
-      blurb: "Creating the coolest mood board ever!",
-      meta: "Locked",
-      icon: Lock,
-      animation: "bento2-glow 7s ease-in-out infinite",
-      locked: true,
+      subtitle: party?.decoration_preferences
+        ? `Curating ${party.decoration_preferences} decor`
+        : "Putting together a beautiful mood board",
+      icon: Palette,
+      accentFrom: "#10b981",
+      accentTo: "#059669",
+      delay: 560,
+      visible,
     },
   ];
 
-  const spans = [
-    "md:col-span-4 md:row-span-2",
-    "md:col-span-2 md:row-span-1",
-    "md:col-span-2 md:row-span-1",
-    "md:col-span-3 md:row-span-1",
-    "md:col-span-3 md:row-span-1",
-  ];
-
   return (
-    <div className="relative min-h-screen w-full bg-white text-neutral-900 transition-colors duration-500 dark:bg-black dark:text-white">
-      <div className="absolute inset-0 -z-30 overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#08111f] text-white">
+      <div className="pointer-events-none absolute inset-0 -z-10">
         <div
-          className="absolute inset-0 [--aurora-base:#ffffff] [--aurora-accent:rgba(148,163,184,0.15)] dark:[--aurora-base:#040404] dark:[--aurora-accent:rgba(59,130,246,0.15)]"
+          className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 55% 100% at 12% 0%, var(--aurora-accent), transparent 65%), radial-gradient(ellipse 40% 80% at 88% 0%, rgba(148,163,184,0.1), transparent 70%), var(--aurora-base)",
-          }}
-        />
-        <div
-          className="absolute inset-0 [--grid-color:rgba(17,17,17,0.08)] dark:[--grid-color:rgba(255,255,255,0.06)]"
-          style={{
-            backgroundImage:
-              "linear-gradient(to right, var(--grid-color) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px)",
-            backgroundSize: "20px 20px",
-            backgroundPosition: "0 0, 0 0",
-            maskImage:
-              "repeating-linear-gradient(to right, black 0px, black 3px, transparent 3px, transparent 8px), repeating-linear-gradient(to bottom, black 0px, black 3px, transparent 3px, transparent 8px)",
-            WebkitMaskImage:
-              "repeating-linear-gradient(to right, black 0px, black 3px, transparent 3px, transparent 8px), repeating-linear-gradient(to bottom, black 0px, black 3px, transparent 3px, transparent 8px)",
-            maskComposite: "intersect",
-            WebkitMaskComposite: "source-in",
-            opacity: 0.9,
-          }}
-        />
-        <div
-          className="pointer-events-none absolute inset-0 [--edge-color:rgba(255,255,255,1)] dark:[--edge-color:rgba(0,0,0,1)]"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(0,0,0,0) 55%, var(--edge-color) 100%)",
-            filter: "blur(40px)",
-            opacity: 0.75,
+              "radial-gradient(ellipse 60% 50% at 50% 0%, rgba(124,58,237,0.18), transparent 70%), radial-gradient(ellipse 40% 40% at 80% 100%, rgba(59,130,246,0.08), transparent 60%)",
           }}
         />
       </div>
 
       <section
         ref={sectionRef}
-        className={`relative mx-auto max-w-6xl px-6 py-20 motion-safe:opacity-0 ${
-          sectionVisible ? "motion-safe:animate-[bento2-intro_0.9s_ease-out_forwards]" : ""
-        }`}
+        className="relative mx-auto max-w-5xl px-6 py-16 sm:py-24"
       >
-        <header className="mb-10 flex flex-col gap-6 border-b border-neutral-900/10 pb-6 transition-colors duration-500 md:flex-row md:items-end md:justify-between dark:border-white/10">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs uppercase tracking-[0.35em] text-neutral-500 transition-colors duration-500 dark:text-white/40">
-              You have joined the waitlist
+        {/* Back link */}
+        <div
+          style={{
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(16px)",
+            transition: "opacity 0.5s ease, transform 0.5s ease",
+          }}
+        >
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to chat
+          </Link>
+        </div>
+
+        {/* Hero */}
+        <header
+          className="mt-8 mb-12"
+          style={{
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(24px)",
+            transition: "opacity 0.6s ease 100ms, transform 0.6s ease 100ms",
+          }}
+        >
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3.5 py-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-violet-300" />
+            <span className="text-xs font-medium text-violet-200">
+              Planning in progress
             </span>
-            <h2 className="text-3xl font-black tracking-tight text-neutral-900 transition-colors duration-500 md:text-5xl dark:text-white">
-              Coming soon!
-            </h2>
           </div>
-          <div className="flex flex-col items-start gap-4 md:items-end">
-            <p className="max-w-sm text-sm text-neutral-600 transition-colors duration-500 md:text-base dark:text-white/60">
-              We are calling venues, cooking food, and baking cakes right now!
-            </p>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="rounded-full border border-neutral-900/15 px-4 py-1 text-[10px] font-medium uppercase tracking-[0.35em] text-neutral-600 transition-colors duration-500 hover:bg-neutral-900/5 hover:text-neutral-900 dark:border-white/20 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
-            >
-              {theme === "dark" ? "Light Mode" : "Dark Mode"}
-            </button>
-          </div>
+
+          <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
+            {headline}
+          </h1>
+
+          <p className="mt-4 max-w-xl text-base leading-relaxed text-slate-400">
+            Our AI agents are researching the best venues, food, entertainment,
+            and decorations for you. We&apos;ll have options ready soon.
+          </p>
         </header>
 
-        <div className="grid grid-cols-1 gap-3 md:auto-rows-[minmax(120px,auto)] md:grid-cols-6">
-          {features.map((feature, index) => (
-            <BentoItem
-              key={feature.title}
-              span={spans[index]}
-              feature={feature}
-              theme={theme}
-              index={index}
-              isVisible={sectionVisible}
-            />
+        {/* Party details card */}
+        <div
+          className="mb-8"
+          style={{
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(24px)",
+            transition: "opacity 0.6s ease 150ms, transform 0.6s ease 150ms",
+          }}
+        >
+          <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
+            <div className="border-b border-white/[0.06] px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 ring-1 ring-violet-400/20">
+                  <PartyPopper className="h-4.5 w-4.5 text-violet-300" />
+                </div>
+                <div>
+                  <h2 className="text-[15px] font-semibold tracking-tight">
+                    Party Details
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    What you told us so far
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-x-8 gap-y-1 px-6 py-4 sm:grid-cols-2 lg:grid-cols-3">
+              {party ? (
+                <>
+                  {party.child_name && (
+                    <DetailRow
+                      icon={PartyPopper}
+                      label="Birthday kid"
+                      value={
+                        party.child_age
+                          ? `${party.child_name}, turning ${party.child_age}`
+                          : party.child_name
+                      }
+                    />
+                  )}
+                  {party.event_date && (
+                    <DetailRow
+                      icon={Calendar}
+                      label="Date"
+                      value={formatDate(party.event_date)}
+                    />
+                  )}
+                  {party.event_time && (
+                    <DetailRow
+                      icon={Clock}
+                      label="Time"
+                      value={formatTime(party.event_time)}
+                    />
+                  )}
+                  {party.guest_count != null && (
+                    <DetailRow
+                      icon={Users}
+                      label="Guests"
+                      value={`${party.guest_count} people`}
+                    />
+                  )}
+                  {party.zip_code && (
+                    <DetailRow
+                      icon={MapPin}
+                      label="Location"
+                      value={party.zip_code}
+                    />
+                  )}
+                  {party.theme && (
+                    <DetailRow
+                      icon={Sparkles}
+                      label="Theme"
+                      value={party.theme}
+                    />
+                  )}
+                  {(party.budget_low != null || party.budget_high != null) && (
+                    <DetailRow
+                      icon={DollarSign}
+                      label="Budget"
+                      value={formatBudget(party.budget_low, party.budget_high)}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="col-span-full flex items-center gap-3 py-4 text-sm text-slate-500">
+                  <span
+                    className="h-2 w-2 rounded-full bg-violet-400"
+                    style={{ animation: "pulse-dot 1.5s ease-in-out infinite" }}
+                  />
+                  Loading your party details...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Category cards grid */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {categories.map((cat) => (
+            <CategoryCard key={cat.title} {...cat} />
           ))}
         </div>
 
-        <footer className="mt-16 border-t border-neutral-900/10 pt-6 text-xs uppercase tracking-[0.2em] text-neutral-500 transition-colors duration-500 dark:border-white/10 dark:text-white/40">
-          Quiet precision for expressive systems.
+        {/* Footer */}
+        <footer
+          className="mt-16 flex items-center justify-between border-t border-white/[0.06] pt-6"
+          style={{
+            opacity: visible ? 1 : 0,
+            transition: "opacity 0.6s ease 700ms",
+          }}
+        >
+          <span className="text-xs tracking-wide text-slate-500">
+            Concierge
+          </span>
+          <Link
+            href="/"
+            className="text-xs text-slate-500 transition-colors hover:text-white"
+          >
+            Back to chat
+          </Link>
         </footer>
       </section>
     </div>
-  );
-}
-
-function BentoItem({
-  feature,
-  span = "",
-  theme = "light",
-  index = 0,
-  isVisible = false,
-}: BentoItemProps) {
-  const { icon: Icon, animation, title, blurb, meta, locked } = feature;
-  const gradientFill =
-    theme === "dark"
-      ? "radial-gradient(ellipse 60% 120% at 12% 0%, rgba(59,130,246,0.24), transparent 72%)"
-      : "radial-gradient(ellipse 60% 120% at 12% 0%, rgba(148,163,184,0.32), transparent 72%)";
-  const animationDelay = `${Math.max(index * 0.12, 0)}s`;
-
-  return (
-    <article
-      className={`group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-neutral-900/10 bg-white/80 p-5 shadow-[0_10px_40px_rgba(0,0,0,0.04)] transition-transform duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_20px_60px_rgba(0,0,0,0.08)] motion-safe:opacity-0 ${
-        isVisible ? "motion-safe:animate-[bento2-card_0.8s_ease-out_forwards]" : ""
-      } dark:border-white/10 dark:bg-white/5 dark:shadow-[0_18px_40px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_28px_70px_rgba(0,0,0,0.55)] ${span}`}
-      style={{ animationDelay }}
-    >
-      <div className="absolute inset-0 -z-10 overflow-hidden rounded-2xl">
-        <div className="absolute inset-0 bg-white/85 transition-colors duration-500 dark:bg-white/8" />
-        <div
-          className="absolute inset-0 opacity-70 transition-opacity duration-500 dark:opacity-60"
-          style={{ background: gradientFill }}
-        />
-      </div>
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full border border-neutral-900/15 bg-white transition-colors duration-500 dark:border-white/15 dark:bg-white/10">
-          <Icon
-            className="h-7 w-7 text-neutral-900 transition-colors duration-500 dark:text-white"
-            strokeWidth={locked ? 1.75 : 1.5}
-            style={{ animation }}
-          />
-        </div>
-        <div className="flex-1">
-          <header className="flex items-start gap-3">
-            <h3 className="text-base font-semibold uppercase tracking-wide text-neutral-900 transition-colors duration-500 dark:text-white">
-              {title}
-            </h3>
-            {meta ? (
-              <span className="ml-auto rounded-full border border-neutral-900/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.3em] text-neutral-500 transition-colors duration-500 dark:border-white/15 dark:text-white/60">
-                {meta}
-              </span>
-            ) : null}
-          </header>
-          <p className="mt-2 text-sm leading-relaxed text-neutral-600 transition-colors duration-500 dark:text-white/60">
-            {blurb}
-          </p>
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-        <div
-          className="absolute inset-0 rounded-2xl border border-neutral-900/10 transition-colors duration-500 dark:border-white/10"
-          style={{
-            maskImage:
-              "radial-gradient(220px_220px_at_var(--x,50%)_var(--y,50%), black, transparent)",
-            WebkitMaskImage:
-              "radial-gradient(220px_220px_at_var(--x,50%)_var(--y,50%), black, transparent)",
-          }}
-        />
-      </div>
-    </article>
   );
 }
 
