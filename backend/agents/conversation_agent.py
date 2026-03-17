@@ -62,6 +62,8 @@ INITIAL_MESSAGES = [
     "Tell me a little about your kiddo — what's their name and how old are they turning?"
 ]
 
+FINAL_WAITLIST_MESSAGE = "Welcome to the waitlist, we will shoot you a text when you get off!"
+
 
 class ConversationTurn(BaseModel):
     """Combined LLM output: extracted requirements + natural reply."""
@@ -154,9 +156,16 @@ class ConversationAgent(BaseAgent[ConversationTurn]):
         missing = self._missing_fields(merged)
         collected = self._collected_fields(merged)
 
+        ready = turn.ready and len(missing) == 0
+        replies = (
+            [turn.reply, FINAL_WAITLIST_MESSAGE]
+            if ready
+            else [turn.reply]
+        )
+
         return ConversationResult(
-            ready=turn.ready and len(missing) == 0,
-            messages=[turn.reply],
+            ready=ready,
+            messages=replies,
             requirements=merged,
             missing_fields=missing,
             collected_fields=collected,

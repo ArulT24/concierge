@@ -14,6 +14,7 @@ from backend.models.event_request import EventRequirements
 class SessionMessage(BaseModel):
     role: str
     content: str
+    sid: str | None = None
 
 
 class ChatProgress(BaseModel):
@@ -39,9 +40,14 @@ class ChatSession(BaseModel):
 class ChatSessionStore:
     """Postgres-backed session store using the events + messages tables."""
 
-    async def create(self, db: AsyncSession) -> ChatSession:
+    async def create(
+        self,
+        db: AsyncSession,
+        *,
+        user_phone: str = "web-anonymous",
+    ) -> ChatSession:
         event = EventRow(
-            user_phone="web-anonymous",
+            user_phone=user_phone,
             event_type="birthday_party",
             status="intake",
             requirements={},
@@ -51,6 +57,13 @@ class ChatSessionStore:
 
         session_id = str(event.id)
         return ChatSession(session_id=session_id)
+
+    async def create_for_phone(
+        self,
+        phone: str,
+        db: AsyncSession,
+    ) -> ChatSession:
+        return await self.create(db, user_phone=phone)
 
     async def get(self, session_id: str, db: AsyncSession) -> ChatSession | None:
         try:
@@ -86,6 +99,35 @@ class ChatSessionStore:
             messages=messages,
         )
 
+    async def get_by_phone(self, phone: str, db: AsyncSession) -> ChatSession | None:
+        stmt = (
+            select(EventRow.id)
+            .where(EventRow.user_phone == phone)
+            .where(EventRow.status != "archived")
+            .order_by(EventRow.updated_at.desc(), EventRow.created_at.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        event_id = result.scalar_one_or_none()
+        if event_id is None:
+            return None
+        return await self.get(str(event_id), db)
+
+    async def get_or_create_by_phone(
+        self,
+        phone: str,
+        db: AsyncSession,
+    ) -> ChatSession:
+        session = await self.get_by_phone(phone, db)
+        if session is not None:
+            return session
+        return await self.create_for_phone(phone, db)
+
+    async def has_message_sid(self, sid: str, db: AsyncSession) -> bool:
+        stmt = select(MessageRow.id).where(MessageRow.sid == sid).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def save(self, session: ChatSession, db: AsyncSession) -> None:
         event_id = uuid.UUID(session.session_id)
         event = await db.get(EventRow, event_id)
@@ -99,6 +141,7 @@ class ChatSessionStore:
                 event_id=event_id,
                 direction="inbound" if msg.role == "user" else "outbound",
                 content=msg.content,
+                sid=msg.sid,
             )
             db.add(row)
 

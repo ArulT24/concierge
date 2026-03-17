@@ -429,7 +429,7 @@ export function ChatDemo() {
     ]);
 
     window.setTimeout(() => {
-      router.push(sessionId ? `/bento-demo?session=${sessionId}` : "/bento-demo");
+      router.replace(sessionId ? `/bento-demo?session=${sessionId}` : "/bento-demo");
     }, 900);
   }
 
