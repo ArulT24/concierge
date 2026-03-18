@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     # ── SerpAPI ──────────────────────────────────────
     serpapi_key: str = ""
 
+    # ── Exa ───────────────────────────────────────────
+    exa_api_key: str = ""
+
+    # ── Browserbase ───────────────────────────────────
+    browserbase_api_key: str = ""
+    browserbase_project_id: str = ""
+
     # ── CORS ──────────────────────────────────────
     cors_origins: str = ""
 

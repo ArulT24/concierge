@@ -26,6 +26,7 @@ celery.conf.update(
         "backend.workflows.*": {"queue": "workflows"},
         "backend.agents.*": {"queue": "agents"},
         "backend.services.vendor_call_service.*": {"queue": "calls"},
+        "backend.services.search.*": {"queue": "searches"},
     },
 )
 
@@ -34,5 +35,6 @@ celery.autodiscover_tasks(
         "backend.workflows",
         "backend.agents",
         "backend.services",
+        "backend.services.search",
     ]
 )

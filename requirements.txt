@@ -20,6 +20,7 @@ redis>=5.2.0
 
 # AI
 openai>=1.57.0
+exa-py>=1.9.0
 
 # Integrations
 twilio>=9.4.0
