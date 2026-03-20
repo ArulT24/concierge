@@ -8,9 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Birthday Party Planner",
-  description:
-    "AI birthday party planning demo that helps parents build a party plan and join the waitlist.",
+  title: "Concierge — Coming soon",
+  description: "Something new is on the way.",
 };
 
 export default function RootLayout({
