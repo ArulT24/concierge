@@ -44,6 +44,44 @@ class SearchResultsResponse(BaseModel):
     results: list[SearchResultItem] = Field(default_factory=list)
 
 
+class SearchRunDetail(BaseModel):
+    """One persisted Exa search row (query + structured hits)."""
+
+    id: str
+    category: str
+    query: str
+    created_at: str
+    result_count: int
+    results: list[SearchResultItem] = Field(default_factory=list)
+
+
+class SearchRunsResponse(BaseModel):
+    event_id: str
+    runs: list[SearchRunDetail] = Field(default_factory=list)
+
+
+def _row_results_to_items(
+    row: VendorSearchRow,
+    *,
+    category: str,
+) -> list[SearchResultItem]:
+    if not isinstance(row.results, list):
+        return []
+    items: list[SearchResultItem] = []
+    for r in row.results:
+        url = r.get("website") or r.get("exa_url", "")
+        items.append(
+            SearchResultItem(
+                name=r.get("name", ""),
+                category=r.get("category", category),
+                website=url,
+                description=(r.get("description") or "")[:500],
+                exa_score=r.get("exa_score"),
+            )
+        )
+    return items
+
+
 class TriggerRequest(BaseModel):
     requirements: dict | None = None
 
@@ -96,6 +134,47 @@ async def get_search_status(
     )
 
 
+@router.get("/{event_id}/runs", response_model=SearchRunsResponse)
+async def get_search_runs(
+    event_id: str,
+    db: AsyncSession = Depends(get_session),
+) -> SearchRunsResponse:
+    """Return every stored search run (Exa query + hits) for dashboard inspection."""
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid event ID format.")
+
+    event = await db.get(EventRow, eid)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found.")
+
+    stmt = (
+        select(VendorSearchRow)
+        .where(VendorSearchRow.event_id == eid)
+        .order_by(VendorSearchRow.created_at)
+    )
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+
+    runs: list[SearchRunDetail] = []
+    for row in rows:
+        cat = str(row.category)
+        items = _row_results_to_items(row, category=cat)
+        runs.append(
+            SearchRunDetail(
+                id=str(row.id),
+                category=cat,
+                query=row.query,
+                created_at=row.created_at.isoformat() if row.created_at else "",
+                result_count=len(items),
+                results=items,
+            )
+        )
+
+    return SearchRunsResponse(event_id=event_id, runs=runs)
+
+
 @router.get("/{event_id}/{category}", response_model=SearchResultsResponse)
 async def get_search_results(
     event_id: str,
@@ -126,20 +205,18 @@ async def get_search_results(
     seen_urls: set[str] = set()
     items: list[SearchResultItem] = []
     for row in rows:
-        if not isinstance(row.results, list):
-            continue
-        for r in row.results:
-            url = r.get("website") or r.get("exa_url", "")
-            if url in seen_urls:
+        for item in _row_results_to_items(row, category=category):
+            url = item.website
+            if not url or url in seen_urls:
                 continue
             seen_urls.add(url)
             items.append(
                 SearchResultItem(
-                    name=r.get("name", ""),
-                    category=r.get("category", category),
-                    website=url,
-                    description=r.get("description", "")[:300],
-                    exa_score=r.get("exa_score"),
+                    name=item.name,
+                    category=item.category,
+                    website=item.website,
+                    description=item.description[:300],
+                    exa_score=item.exa_score,
                 )
             )
 

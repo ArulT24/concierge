@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from enum import Enum
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Repo root (parent of `backend/`) so .env.local is found even if cwd is elsewhere.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class Environment(str, Enum):
@@ -15,7 +19,10 @@ class Environment(str, Enum):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.local"),
+        env_file=(
+            str(_PROJECT_ROOT / ".env"),
+            str(_PROJECT_ROOT / ".env.local"),
+        ),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -37,6 +44,10 @@ class Settings(BaseSettings):
     # ── OpenAI ───────────────────────────────────────
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
+
+    # ── Anthropic (pipeline fit scoring) ─────────────
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-3-5-sonnet-20241022"
 
     # ── Twilio / WhatsApp ────────────────────────────
     twilio_account_sid: str = ""

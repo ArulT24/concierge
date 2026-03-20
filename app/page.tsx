@@ -1,6 +1,3 @@
-import Link from "next/link";
-
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardDescription,
@@ -11,24 +8,23 @@ import {
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-black px-6 py-16 text-white">
-      <Card className="w-full max-w-md border-white/20 bg-black text-white shadow-none">
-        <CardHeader className="space-y-3 text-center">
+      <Card className="w-full max-w-lg border-white/20 bg-black text-white shadow-none">
+        <CardHeader className="space-y-5 text-left sm:text-center">
           <CardTitle className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
             Coming soon
           </CardTitle>
-          <CardDescription className="text-sm text-white/60">
+          <CardDescription className="text-sm leading-relaxed text-white/60">
             We&apos;re building something new. Check back shortly.
           </CardDescription>
+          <p className="border-t border-white/10 pt-5 text-sm leading-relaxed text-white/80">
+            Think of Mrs. Doubtfire in the kitchen: someone who steps in, keeps
+            the chaos off your plate, and makes sure everything feels handled
+            with care. That&apos;s the idea here for your kid&apos;s party, we
+            listen to what you want, chase the details you don&apos;t have time
+            for, and help the day come together so you can focus on being there
+            with your family.
+          </p>
         </CardHeader>
-        <div className="flex flex-col gap-3 border-t border-white/10 px-6 pb-6 pt-4 sm:flex-row sm:justify-center">
-          <Button
-            asChild
-            variant="outline"
-            className="w-full border-white/30 bg-transparent text-white hover:bg-white hover:text-black sm:w-auto"
-          >
-            <Link href="/demo">Open demo</Link>
-          </Button>
-        </div>
       </Card>
     </main>
   );

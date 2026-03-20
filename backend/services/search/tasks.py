@@ -3,13 +3,12 @@ from __future__ import annotations
 import asyncio
 import uuid
 
-from celery import group
+from celery import chord, group
 
 from backend.celery_app import celery
 from backend.database.connection import dispose_engine, get_session_factory
 from backend.logging_config import get_logger
 from backend.services.search.search_orchestrator import (
-    check_all_categories_complete,
     search_category,
     update_event_status,
 )
@@ -50,10 +49,7 @@ async def _run_search_and_check(
 
         async with factory() as db:
             try:
-                all_done = await check_all_categories_complete(event_id, db)
-                if all_done:
-                    await update_event_status(event_id, "ready", db)
-                    logger.info("all searches complete, event ready", event_id=event_id_str)
+                # Pipeline completion (enrich + score → ready) runs in Celery chord callback.
                 await db.commit()
             except Exception:
                 await db.rollback()
@@ -150,11 +146,13 @@ def dispatch_research_plan(
             )
         )
 
-    job = group(search_tasks)
-    job.apply_async()
+    header = group(search_tasks)
+    chord(header)(
+        finalize_vendor_pipeline.s(event_id, requirements or {}),
+    ).apply_async()
 
     logger.info(
-        "research plan dispatched",
+        "research plan dispatched (with post-search pipeline chord)",
         event_id=event_id,
         categories=[t["category"] for t in tasks_data],
     )
@@ -163,3 +161,34 @@ def dispatch_research_plan(
         "event_id": event_id,
         "dispatched": len(search_tasks),
     }
+
+
+@celery.task(time_limit=3600, soft_time_limit=3300)
+def finalize_vendor_pipeline(
+    group_results: list | None,
+    event_id: str,
+    requirements: dict | None = None,
+) -> dict:
+    """After all Exa searches finish: shortlist, Browserbase, Anthropic, event_options."""
+    import asyncio
+    import uuid as uuid_mod
+
+    from backend.services.pipeline.finalize import run_pipeline_for_event
+
+    logger.info(
+        "pipeline finalize task started",
+        event_id=event_id,
+        prior_tasks=len(group_results or []),
+    )
+    try:
+        result = asyncio.run(
+            run_pipeline_for_event(
+                uuid_mod.UUID(event_id),
+                requirements or {},
+            )
+        )
+        logger.info("pipeline finalize task done", **{k: v for k, v in result.items() if k != "errors"})
+        return result
+    except Exception as exc:
+        logger.error("pipeline finalize task failed", event_id=event_id, error=str(exc))
+        raise

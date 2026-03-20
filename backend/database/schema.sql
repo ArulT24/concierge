@@ -6,6 +6,8 @@ CREATE TYPE event_status AS ENUM (
     'intake',
     'planning',
     'researching',
+    'enriching',
+    'scoring',
     'ready',
     'archived'
 );
@@ -23,6 +25,15 @@ CREATE TYPE call_status AS ENUM (
     'pending',
     'in_progress',
     'completed',
+    'failed'
+);
+
+CREATE TYPE vendor_candidate_stage AS ENUM (
+    'shortlisted',
+    'enriching',
+    'enriched',
+    'scoring',
+    'scored',
     'failed'
 );
 
@@ -100,6 +111,31 @@ CREATE TABLE event_options (
 );
 
 CREATE INDEX idx_event_options_event_id ON event_options (event_id);
+
+-- ── Vendor candidates (Exa → enrich → score pipeline) ─
+
+CREATE TABLE vendor_candidates (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id        UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    category        vendor_category NOT NULL,
+    url             TEXT NOT NULL,
+    exa_name        TEXT NOT NULL DEFAULT '',
+    exa_description TEXT NOT NULL DEFAULT '',
+    exa_score       DOUBLE PRECISION,
+    stage           vendor_candidate_stage NOT NULL DEFAULT 'shortlisted',
+    enrichment      JSONB NOT NULL DEFAULT '{}',
+    fit_score       DOUBLE PRECISION,
+    fit_rationale   TEXT,
+    scoring_meta    JSONB NOT NULL DEFAULT '{}',
+    display_rank    INTEGER,
+    error_message   TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_vendor_candidates_event_category_url UNIQUE (event_id, category, url)
+);
+
+CREATE INDEX idx_vendor_candidates_event_id ON vendor_candidates (event_id);
+CREATE INDEX idx_vendor_candidates_stage ON vendor_candidates (stage);
 
 -- ── Updated-at trigger ──────────────────────────────
 
