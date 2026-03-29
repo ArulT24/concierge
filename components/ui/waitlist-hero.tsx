@@ -1,7 +1,18 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import {
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
+import {
+  Loader2,
+  Mail,
+  MessageCircle,
+  Phone,
+  Store,
+} from "lucide-react";
 
 type SubmitStatus = "idle" | "loading" | "success";
 
@@ -15,15 +26,198 @@ type Particle = {
   size: number;
 };
 
-/** Decorative backgrounds (Unsplash). */
-const SPIN_BG_LARGE =
-  "https://images.unsplash.com/photo-1557682250-33bd709cbe85?auto=format&fit=crop&w=2000&q=80";
-const SPIN_BG_MID =
-  "https://images.unsplash.com/photo-1614850523296-d8c1af93d400?auto=format&fit=crop&w=1200&q=80";
-const SPIN_BG_FRONT =
-  "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80";
-const APP_ICON =
-  "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=400&q=80";
+/**
+ * Party planning context: social, local discovery, listings, and how parents coordinate.
+ * Brands via Simple Icons CDN. Phone / email / messages / “listings” use Lucide glyphs
+ * (Simple Icons has no Craigslist mark; the store tile reads as classifieds / local picks).
+ * eBay reads as generic buy-sell marketplace next to Facebook/Instagram.
+ */
+type OrbitBrand = { type: "brand"; slug: string; color: string };
+type OrbitGlyph = {
+  type: "glyph";
+  id: "phone" | "mail" | "messages" | "listings";
+  bgClass: string;
+};
+
+type OrbitItem = OrbitBrand | OrbitGlyph;
+
+const ORBIT_INNER: OrbitItem[] = [
+  { type: "brand", slug: "facebook", color: "0866FF" },
+  { type: "brand", slug: "instagram", color: "E4405F" },
+  { type: "brand", slug: "reddit", color: "FF4500" },
+  { type: "brand", slug: "ebay", color: "E53238" },
+  { type: "glyph", id: "listings", bgClass: "bg-violet-700/95" },
+  { type: "glyph", id: "phone", bgClass: "bg-blue-600/95" },
+  { type: "glyph", id: "mail", bgClass: "bg-sky-500/95" },
+  { type: "glyph", id: "messages", bgClass: "bg-emerald-600/95" },
+];
+
+const ORBIT_OUTER: OrbitItem[] = [
+  /* Amazon/Walmart marks aren’t on Simple Icons CDN; Instacart + Target + Shopify cover shopping. */
+  { type: "brand", slug: "instacart", color: "43B02A" },
+  { type: "brand", slug: "whatsapp", color: "25D366" },
+  { type: "brand", slug: "shopify", color: "7AB55C" },
+  { type: "brand", slug: "target", color: "CC0000" },
+  { type: "brand", slug: "etsy", color: "F56400" },
+  { type: "brand", slug: "doordash", color: "FF3008" },
+  { type: "brand", slug: "nextdoor", color: "00C4CC" },
+  { type: "brand", slug: "yelp", color: "FF1A1A" },
+  { type: "brand", slug: "pinterest", color: "BD081C" },
+  { type: "brand", slug: "gmail", color: "EA4335" },
+  { type: "brand", slug: "googlemaps", color: "4285F4" },
+];
+
+function simpleIconUrl(slug: string, color: string) {
+  return `https://cdn.simpleicons.org/${slug}/${color}`;
+}
+
+function orbitItemKey(item: OrbitItem, i: number, reverse: boolean) {
+  const side = reverse ? "o" : "i";
+  if (item.type === "brand") return `${side}-${i}-${item.slug}`;
+  return `${side}-${i}-g-${item.id}`;
+}
+
+const GLYPH_ICONS = {
+  phone: Phone,
+  mail: Mail,
+  messages: MessageCircle,
+  listings: Store,
+} as const;
+
+type OrbitTileBlur = "off" | "soft" | "heavy";
+
+function OrbitTile({
+  item,
+  iconPx,
+  blur,
+}: {
+  item: OrbitItem;
+  iconPx: number;
+  blur: OrbitTileBlur;
+}) {
+  const shell =
+    "flex size-full items-center justify-center rounded-2xl shadow-[0_8px_30px_-8px_rgba(0,0,0,0.65),0_0_0_1px_rgba(255,255,255,0.14)_inset] ring-1 ring-white/25";
+
+  const fade =
+    blur === "heavy"
+      ? "opacity-[0.52] [filter:blur(3.5px)]"
+      : blur === "soft"
+        ? "opacity-[0.68] [filter:blur(1.25px)]"
+        : "opacity-[0.94]";
+
+  /** Blur sits inside the counter-rotating subtree so it doesn’t break transform composition. */
+  if (item.type === "glyph") {
+    const Icon = GLYPH_ICONS[item.id];
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div className={`${shell} ${item.bgClass} ${fade}`} aria-hidden>
+          <Icon
+            className="text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]"
+            strokeWidth={2.2}
+            size={Math.round(iconPx * 0.44)}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full w-full items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={simpleIconUrl(item.slug, item.color)}
+        alt=""
+        width={iconPx}
+        height={iconPx}
+        className={`${shell} bg-zinc-900/95 object-contain p-2.5 ${fade}`}
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
+function SpinningAppRing({
+  apps,
+  radiusVw,
+  radiusMaxPx,
+  iconPx,
+  reverse,
+  blurredIndexes,
+  centerTopPercent = 54,
+  /** When set, every tile uses this blur level (overrides per-index soft blur). */
+  ringBlur = "selective",
+  /** Must match on ring + counter layers (outer can be slower for parallax). */
+  spinDurationSec = 62,
+}: {
+  apps: OrbitItem[];
+  radiusVw: number;
+  radiusMaxPx: number;
+  iconPx: number;
+  reverse: boolean;
+  blurredIndexes: Set<number>;
+  /** Viewport % from top for the orbit center (higher = lower on screen). */
+  centerTopPercent?: number;
+  ringBlur?: "selective" | "heavy";
+  spinDurationSec?: number;
+}) {
+  const n = apps.length;
+  const half = iconPx / 2;
+  /** Ring vs counter must use opposite keyframes, same --orbit-duration (see orbit-anim-* in <style>). */
+  const ringSpinClass = reverse ? "orbit-anim-ring-rev" : "orbit-anim-ring";
+  const counterSpinClass = reverse ? "orbit-anim-ring" : "orbit-anim-ring-rev";
+  const ringBox = {
+    width: `min(${radiusVw * 2}vw, ${radiusMaxPx * 2}px)`,
+    height: `min(${radiusVw * 2}vw, ${radiusMaxPx * 2}px)`,
+    ["--orbit-duration" as string]: `${spinDurationSec}s`,
+  } satisfies CSSProperties;
+  const counterDuration = {
+    ["--orbit-duration" as string]: `${spinDurationSec}s`,
+  } satisfies CSSProperties;
+
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
+      style={{ top: `${centerTopPercent}%` }}
+    >
+      <div className={ringSpinClass} style={ringBox}>
+      {apps.map((app, i) => {
+        const angle = (360 / n) * i;
+        const blur: OrbitTileBlur =
+          ringBlur === "heavy"
+            ? "heavy"
+            : blurredIndexes.has(i)
+              ? "soft"
+              : "off";
+        return (
+          <div
+            key={orbitItemKey(app, i, reverse)}
+            className="absolute left-1/2 top-1/2"
+            style={{
+              width: iconPx,
+              height: iconPx,
+              marginLeft: -half,
+              marginTop: -half,
+              transform: `rotate(${angle}deg) translateY(calc(-1 * min(${radiusVw}vw, ${radiusMaxPx}px)))`,
+            }}
+          >
+            <div
+              className="h-full w-full"
+              style={{ transform: `rotate(-${angle}deg)` }}
+            >
+              <div
+                className={`h-full w-full ${counterSpinClass}`}
+                style={counterDuration}
+              >
+                <OrbitTile item={app} iconPx={iconPx} blur={blur} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      </div>
+    </div>
+  );
+}
 
 function signupErrorMessage(data: unknown): string {
   if (data && typeof data === "object" && "error" in data) {
@@ -162,15 +356,21 @@ export function WaitlistHero() {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        .animate-spin-slow {
-          animation: spin-slow 60s linear infinite;
+        .orbit-anim-ring {
+          animation: spin-slow var(--orbit-duration, 62s) linear infinite;
         }
         @keyframes spin-slow-reverse {
           from { transform: rotate(0deg); }
           to { transform: rotate(-360deg); }
         }
-        .animate-spin-slow-reverse {
-          animation: spin-slow-reverse 60s linear infinite;
+        .orbit-anim-ring-rev {
+          animation: spin-slow-reverse var(--orbit-duration, 62s) linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .orbit-anim-ring,
+          .orbit-anim-ring-rev {
+            animation: none !important;
+          }
         }
         @keyframes bounce-in {
           0% { transform: scale(0.8); opacity: 0; }
@@ -222,70 +422,43 @@ export function WaitlistHero() {
             'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         }}
       >
-        <div
-          className="pointer-events-none absolute inset-0 h-full w-full"
-          style={{
-            perspective: "1200px",
-            transform: "perspective(1200px) rotateX(15deg)",
-            transformOrigin: "center bottom",
-            opacity: 1,
-          }}
-        >
-          <div className="animate-spin-slow absolute inset-0">
-            <div
-              className="absolute top-1/2 left-1/2"
-              style={{
-                width: "2000px",
-                height: "2000px",
-                transform: "translate(-50%, -50%) rotate(279.05deg)",
-                zIndex: 0,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={SPIN_BG_LARGE}
-                alt=""
-                className="h-full w-full object-cover opacity-50"
-              />
-            </div>
-          </div>
-
-          <div className="animate-spin-slow-reverse absolute inset-0">
-            <div
-              className="absolute top-1/2 left-1/2"
-              style={{
-                width: "1000px",
-                height: "1000px",
-                transform: "translate(-50%, -50%) rotate(304.42deg)",
-                zIndex: 1,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={SPIN_BG_MID}
-                alt=""
-                className="h-full w-full object-cover opacity-60"
-              />
-            </div>
-          </div>
-
-          <div className="animate-spin-slow absolute inset-0">
-            <div
-              className="absolute top-1/2 left-1/2"
-              style={{
-                width: "800px",
-                height: "800px",
-                transform: "translate(-50%, -50%) rotate(48.33deg)",
-                zIndex: 2,
-              }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={SPIN_BG_FRONT}
-                alt=""
-                className="h-full w-full object-cover opacity-80"
-              />
-            </div>
+        {/* Spinning “app” orbits */}
+        <div className="pointer-events-none absolute inset-0 h-full w-full overflow-hidden">
+          <div
+            className="absolute inset-0 origin-center"
+            style={{
+              perspective: "1400px",
+              transform: "perspective(1400px) rotateX(13deg)",
+              transformOrigin: "center 52%",
+            }}
+          >
+          <div
+            className="absolute inset-0 opacity-95"
+            style={{
+              background:
+                "radial-gradient(ellipse 58% 48% at 50% 48%, rgba(124, 58, 237, 0.16), transparent 72%), radial-gradient(ellipse 42% 38% at 50% 52%, rgba(0, 121, 218, 0.11), transparent 68%), radial-gradient(ellipse 30% 28% at 50% 56%, rgba(251, 191, 36, 0.06), transparent 62%)",
+            }}
+          />
+          <SpinningAppRing
+            apps={ORBIT_OUTER}
+            radiusVw={54}
+            radiusMaxPx={420}
+            iconPx={90}
+            reverse
+            blurredIndexes={new Set()}
+            centerTopPercent={63}
+            ringBlur="heavy"
+            spinDurationSec={74}
+          />
+          <SpinningAppRing
+            apps={ORBIT_INNER}
+            radiusVw={25}
+            radiusMaxPx={205}
+            iconPx={68}
+            reverse={false}
+            blurredIndexes={new Set([1, 4, 6])}
+            centerTopPercent={54}
+          />
           </div>
         </div>
 
@@ -297,27 +470,18 @@ export function WaitlistHero() {
         />
 
         <div className="relative z-20 flex h-full w-full flex-col items-center justify-end gap-6 pb-24">
-          <div className="mb-2 h-16 w-16 overflow-hidden rounded-2xl shadow-lg ring-1 ring-white/10">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={APP_ICON}
-              alt="Event planning"
-              className="h-full w-full object-cover"
-            />
-          </div>
-
           <h1
             className="text-center text-5xl font-bold tracking-tight md:text-6xl"
             style={{ color: colors.textMain }}
           >
-            Coming soon
+            bertram
           </h1>
 
           <p
             className="max-w-md px-4 text-center text-lg font-medium"
             style={{ color: colors.textSecondary }}
           >
-            Thoughtful party planning for busy parents. Join the waitlist.
+            From vendors to cakes, bertram has you covered. Party plan less, celebrate more!
           </p>
 
           <div className="mt-4 w-full max-w-md px-4">
