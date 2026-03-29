@@ -101,6 +101,16 @@ CREATE TABLE event_options (
 
 CREATE INDEX idx_event_options_event_id ON event_options (event_id);
 
+-- ── Landing waitlist (marketing signups) ───────────
+
+CREATE TABLE landing_waitlist (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email      TEXT        NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX uq_landing_waitlist_email ON landing_waitlist (email);
+
 -- ── Updated-at trigger ──────────────────────────────
 
 CREATE OR REPLACE FUNCTION update_updated_at()
