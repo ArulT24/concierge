@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Could not reach the planning assistant. Make sure the backend is running.",
+          "Could not reach the planning assistant. Start the backend: uvicorn backend.main:app --reload",
       },
       { status: 502 }
     );

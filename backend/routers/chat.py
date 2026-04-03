@@ -76,9 +76,20 @@ async def _trigger_research_pipeline(
 ) -> str | None:
     """Run PlanningAgent and dispatch search tasks. Returns plan summary."""
     from backend.agents.planning_agent import PlanningAgent
+    from backend.models.event_request import EventRequirements
     from backend.services.search.tasks import dispatch_research_plan
 
     try:
+        reqs = EventRequirements.model_validate(requirements)
+        is_ready, missing_reasons = reqs.search_ready()
+        if not is_ready:
+            logger.warning(
+                "search skipped — insufficient requirements",
+                session_id=session_id,
+                missing=missing_reasons,
+            )
+            return None
+
         event_id = uuid.UUID(session_id)
         event = await db.get(EventRow, event_id)
         if event:

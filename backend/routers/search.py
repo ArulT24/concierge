@@ -250,6 +250,15 @@ async def trigger_search(
     )
 
     from backend.agents.planning_agent import PlanningAgent, ResearchPlan
+    from backend.models.event_request import EventRequirements
+
+    reqs = EventRequirements.model_validate(requirements)
+    is_ready, missing_reasons = reqs.search_ready()
+    if not is_ready:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Not enough info to search: {'; '.join(missing_reasons)}",
+        )
 
     planner = PlanningAgent()
     req_json = (
