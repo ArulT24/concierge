@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import type { NextFetchEvent, NextMiddleware, NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
@@ -13,7 +13,7 @@ const chatAuth = auth((req) => {
     return NextResponse.redirect(signIn);
   }
   return NextResponse.next();
-});
+}) as unknown as NextMiddleware;
 
 /**
  * On Vercel, only the marketing landing and its waitlist proxy are exposed.
@@ -32,6 +32,7 @@ function isPublicFile(pathname: string): boolean {
 
 function isAllowedPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "") return true;
+  /** Legacy marketing URL → `app/arden/page.tsx` redirects to `/`. */
   if (pathname === "/arden" || pathname.startsWith("/arden/")) return true;
   if (pathname === "/pixel") return true;
   if (pathname === "/api/landing-waitlist") return true;
@@ -39,11 +40,11 @@ function isAllowedPath(pathname: string): boolean {
   return false;
 }
 
-export function proxy(request: NextRequest) {
+export function proxy(request: NextRequest, event: NextFetchEvent) {
   const pathname = request.nextUrl.pathname;
 
   if (pathname === "/chat" || pathname.startsWith("/chat/")) {
-    return chatAuth(request);
+    return chatAuth(request, event);
   }
 
   if (!landingOnlyEnabled()) {

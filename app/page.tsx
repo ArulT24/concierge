@@ -1,9 +1,13 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
-/**
- * Marketing default: Arden-style waitlist / planning demo.
- * Keeps a single primary funnel surface at /arden (and / via redirect).
- */
+import { ArdenLanding } from "@/components/arden/arden-landing";
+
+export const metadata: Metadata = {
+  title: "bertram — planning demo",
+  description:
+    "Chat demo for parties, holidays, travel, and itineraries — waitlist and layout inspired by arden.co.",
+};
+
 export default function Home() {
-  redirect("/arden");
+  return <ArdenLanding />;
 }

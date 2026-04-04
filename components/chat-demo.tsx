@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RotateCcw, Send, Sparkles } from "lucide-react";
 import { useSession } from "next-auth/react";
 
+import { ARDEN_BLUE } from "@/components/arden/arden-chrome";
 import { cn } from "@/lib/utils";
 
 type ChatRole = "assistant" | "user";
@@ -56,25 +57,63 @@ async function fetchWithTimeout(
   }
 }
 
-function TypingBubble() {
+function TypingBubble({ arden }: { arden?: boolean }) {
+  const dots = (
+    <div className="flex items-center gap-1.5 px-0.5 py-0.5" aria-hidden>
+      <span
+        className={cn(
+          "typing-dot inline-block rounded-full",
+          arden ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
+        )}
+      />
+      <span
+        className={cn(
+          "typing-dot inline-block rounded-full",
+          arden ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
+        )}
+      />
+      <span
+        className={cn(
+          "typing-dot inline-block rounded-full",
+          arden ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
+        )}
+      />
+    </div>
+  );
+
+  if (arden) {
+    return (
+      <div className="message-fade-in relative z-[2] flex justify-start">
+        <div
+          className="rounded-[20px] rounded-bl-md bg-white px-4 py-3 opacity-100 shadow-[0_2px_14px_-6px_rgba(0,0,0,0.22)] ring-1 ring-black/[0.06] [transform:translateZ(0)]"
+        >
+          {dots}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="message-fade-in flex justify-start">
       <div className="rounded-2xl rounded-tl-sm border border-white/[0.06] bg-white/[0.04] px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-          <span className="typing-dot h-1.5 w-1.5 rounded-full bg-slate-400" />
-        </div>
+        {dots}
       </div>
     </div>
   );
 }
 
+export type ChatDemoTheme = "violet" | "arden";
+
 type ChatDemoProps = {
   variant?: ChatDemoVariant;
+  theme?: ChatDemoTheme;
 };
 
-export function ChatDemo({ variant = "authenticated" }: ChatDemoProps) {
+export function ChatDemo({
+  variant = "authenticated",
+  theme = "violet",
+}: ChatDemoProps) {
+  const isArden = theme === "arden";
   const { data: session, status: sessionStatus } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -479,120 +518,251 @@ export function ChatDemo({ variant = "authenticated" }: ChatDemoProps) {
   }
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
-            <Sparkles className="h-4 w-4 text-violet-300" />
+    <div
+      className={cn(
+        "w-full",
+        isArden
+          ? "flex h-full min-h-0 flex-col"
+          : "overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm"
+      )}
+    >
+      {!isArden ? (
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
+              <Sparkles className="h-4 w-4 text-violet-300" />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold tracking-tight text-white sm:text-sm">
+                bertram
+              </p>
+              <p className="hidden text-[11px] text-slate-500 sm:block">
+                Tell us about the party you have in mind
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[13px] font-semibold tracking-tight text-white sm:text-sm">
-              Bertram
-            </p>
-            <p className="hidden text-[11px] text-slate-500 sm:block">
-              Tell us about the party you have in mind
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={startNewChat}
-            disabled={isTyping || isSending || autoWaitlistBusy}
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white disabled:pointer-events-none disabled:opacity-40"
-          >
-            <RotateCcw className="h-3 w-3" />
-            New chat
-          </button>
-          <div className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            Live
-          </div>
-        </div>
-      </div>
-
-      <div className="grid min-h-[50vh] grid-rows-[1fr_auto] sm:min-h-[58vh]">
-        <div
-          ref={scrollRef}
-          className="space-y-3 overflow-y-auto px-4 py-4 sm:space-y-4 sm:px-5"
-        >
-          {messages.map((message) => {
-            const isAssistant = message.role === "assistant";
-
-            return (
-              <div
-                key={message.id}
-                className={cn(
-                  "message-fade-in flex",
-                  isAssistant ? "justify-start" : "justify-end"
-                )}
-              >
-                <div
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-[13px] leading-relaxed sm:text-sm",
-                    isAssistant
-                      ? "rounded-tl-sm border border-white/[0.06] bg-white/[0.04] text-slate-200"
-                      : "rounded-tr-sm bg-violet-500 text-white"
-                  )}
-                >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                </div>
-              </div>
-            );
-          })}
-
-          {isTyping || autoWaitlistBusy ? <TypingBubble /> : null}
-        </div>
-
-        {autoWaitlistRetryVisible ? (
-          <div className="border-t border-white/[0.06] px-4 py-2 sm:px-5">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={handleRetryWaitlist}
-              className="w-full rounded-xl bg-violet-500/90 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+              onClick={startNewChat}
+              disabled={isTyping || isSending || autoWaitlistBusy}
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white disabled:pointer-events-none disabled:opacity-40"
             >
-              Try saving your waitlist spot again
+              <RotateCcw className="h-3 w-3" />
+              New chat
             </button>
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Live
+            </div>
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        <form
-          onSubmit={handleSend}
-          className="border-t border-white/[0.06] px-4 py-3 sm:px-5 sm:py-4"
-        >
-          <div className="flex items-center gap-2.5">
-            <label htmlFor="chat-input" className="sr-only">
-              Reply to Bertram
-            </label>
-            <input
-              id="chat-input"
-              type="text"
-              placeholder="Type your answer..."
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              disabled={
-                !sessionId || isSending || isTyping || chatLocked || autoWaitlistRetryVisible
-              }
-              className="flex h-11 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={
-                !input.trim() ||
-                !sessionId ||
-                isSending ||
-                isTyping ||
-                chatLocked ||
-                autoWaitlistRetryVisible
-              }
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-400 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+      {isArden ? (
+        <>
+          <div
+            ref={scrollRef}
+            className="relative z-[2] min-h-0 flex-1 overflow-y-auto overscroll-y-contain scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [transform:translateZ(0)] [&::-webkit-scrollbar]:hidden"
+          >
+            <div className="pb-2 pt-[calc(3.5rem+env(safe-area-inset-top,0px))] sm:pt-[calc(3.75rem+env(safe-area-inset-top,0px))]">
+              <div className="mb-2 flex items-center justify-end sm:mb-3">
+                <button
+                  type="button"
+                  onClick={startNewChat}
+                  disabled={isTyping || isSending || autoWaitlistBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-transparent px-3 py-1.5 text-[11px] font-medium text-neutral-200 transition-colors hover:border-white/35 hover:bg-white/[0.06] disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  New chat
+                </button>
+              </div>
+
+              <div className="space-y-3 sm:space-y-4">
+                {messages.map((message) => {
+                  const isAssistant = message.role === "assistant";
+
+                  return (
+                    <div
+                      key={message.id}
+                      className={cn(
+                        "message-fade-in relative z-[2] flex",
+                        isAssistant ? "justify-start" : "justify-end"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "max-w-[min(92vw,380px)] px-4 py-2.5 text-[13px] leading-relaxed opacity-100 sm:text-sm [transform:translateZ(0)]",
+                          isAssistant
+                            ? "rounded-[20px] rounded-bl-md bg-white text-[15px] leading-snug text-neutral-900 shadow-[0_2px_14px_-6px_rgba(0,0,0,0.22)] ring-1 ring-black/[0.06]"
+                            : "rounded-[20px] rounded-br-md text-[15px] leading-snug text-white shadow-[0_2px_14px_-6px_rgba(0,0,0,0.35)]"
+                        )}
+                        style={
+                          !isAssistant ? { backgroundColor: ARDEN_BLUE } : undefined
+                        }
+                      >
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {isTyping || autoWaitlistBusy ? (
+                  <TypingBubble arden={true} />
+                ) : null}
+              </div>
+            </div>
           </div>
-        </form>
-      </div>
+
+          {autoWaitlistRetryVisible ? (
+            <div className="relative z-[2] shrink-0 bg-transparent py-2">
+              <button
+                type="button"
+                onClick={handleRetryWaitlist}
+                className="w-full rounded-full py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-105"
+                style={{
+                  backgroundColor: ARDEN_BLUE,
+                  boxShadow: "0 8px 28px -8px rgba(27,111,245,0.45)",
+                }}
+              >
+                Try saving your waitlist spot again
+              </button>
+            </div>
+          ) : null}
+
+          <form
+            onSubmit={handleSend}
+            className="relative z-[2] shrink-0 bg-transparent pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pt-3"
+          >
+            <div className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-[0_2px_14px_-6px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.08] focus-within:ring-2 focus-within:ring-[#1B6FF5]/35 sm:gap-2.5 sm:px-4 sm:py-2.5">
+              <label htmlFor="chat-input" className="sr-only">
+                Reply to Bertram
+              </label>
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Type your answer..."
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                disabled={
+                  !sessionId ||
+                  isSending ||
+                  isTyping ||
+                  chatLocked ||
+                  autoWaitlistRetryVisible
+                }
+                className="min-h-10 flex-1 border-0 bg-transparent px-1 text-[15px] text-neutral-900 outline-none ring-0 placeholder:text-neutral-500 focus:ring-0 disabled:opacity-50 sm:min-h-11"
+              />
+              <button
+                type="submit"
+                disabled={
+                  !input.trim() ||
+                  !sessionId ||
+                  isSending ||
+                  isTyping ||
+                  chatLocked ||
+                  autoWaitlistRetryVisible
+                }
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-[0_4px_16px_-4px_rgba(27,111,245,0.45)] transition-[filter] hover:brightness-105 active:brightness-95 disabled:pointer-events-none disabled:opacity-40 sm:h-11 sm:w-11"
+                style={{ backgroundColor: ARDEN_BLUE }}
+                aria-label="Send message"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </form>
+        </>
+      ) : (
+        <div className="grid min-h-[50vh] grid-rows-[1fr_auto] sm:min-h-[58vh]">
+          <div
+            ref={scrollRef}
+            className="space-y-3 overflow-y-auto px-4 py-4 sm:space-y-4 sm:px-5"
+          >
+            {messages.map((message) => {
+              const isAssistant = message.role === "assistant";
+
+              return (
+                <div
+                  key={message.id}
+                  className={cn(
+                    "message-fade-in flex",
+                    isAssistant ? "justify-start" : "justify-end"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[85%] px-4 py-2.5 text-[13px] leading-relaxed sm:text-sm",
+                      isAssistant
+                        ? "rounded-2xl rounded-tl-sm border border-white/[0.06] bg-white/[0.04] text-slate-200"
+                        : "rounded-2xl rounded-tr-sm bg-violet-500 text-white"
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  </div>
+                </div>
+              );
+            })}
+
+            {isTyping || autoWaitlistBusy ? (
+              <TypingBubble arden={false} />
+            ) : null}
+          </div>
+
+          {autoWaitlistRetryVisible ? (
+            <div className="border-t border-white/[0.06] px-4 py-2 sm:px-5">
+              <button
+                type="button"
+                onClick={handleRetryWaitlist}
+                className="w-full rounded-xl bg-violet-500/90 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+              >
+                Try saving your waitlist spot again
+              </button>
+            </div>
+          ) : null}
+
+          <form
+            onSubmit={handleSend}
+            className="border-t border-white/[0.06] px-4 py-3 sm:px-5 sm:py-4"
+          >
+            <div className="flex items-center gap-2.5">
+              <label htmlFor="chat-input" className="sr-only">
+                Reply to Bertram
+              </label>
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Type your answer..."
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                disabled={
+                  !sessionId ||
+                  isSending ||
+                  isTyping ||
+                  chatLocked ||
+                  autoWaitlistRetryVisible
+                }
+                className="flex h-11 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50 sm:h-12"
+              />
+              <button
+                type="submit"
+                disabled={
+                  !input.trim() ||
+                  !sessionId ||
+                  isSending ||
+                  isTyping ||
+                  chatLocked ||
+                  autoWaitlistRetryVisible
+                }
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-400 disabled:pointer-events-none disabled:opacity-40 sm:h-12 sm:w-12"
+                aria-label="Send message"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
