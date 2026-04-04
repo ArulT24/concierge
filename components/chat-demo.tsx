@@ -24,6 +24,16 @@ type ChatFlow = "party_intake" | "waitlist_survey";
 const SESSION_STORAGE_WAITLIST = "concierge_session_waitlist";
 const SESSION_STORAGE_KIDS = "concierge_session_kids_party";
 
+/**
+ * Bump when backend `OPENING_MESSAGES` in `backend/services/waitlist_survey_flow.py`
+ * changes so we do not resume an old DB session that still has a previous intro.
+ */
+const WAITLIST_OPENING_VERSION = "3";
+
+function waitlistOpeningVersionKey(): string {
+  return "concierge_waitlist_opening_v";
+}
+
 function sessionStorageKey(surface: "waitlist" | "kids_party"): string {
   return surface === "kids_party" ? SESSION_STORAGE_KIDS : SESSION_STORAGE_WAITLIST;
 }
@@ -319,6 +329,15 @@ export function ChatDemo({
         const savedId = window.localStorage.getItem(storageId);
         if (!savedId) return false;
 
+        if (surface === "waitlist") {
+          const introV = window.localStorage.getItem(waitlistOpeningVersionKey());
+          if (introV !== WAITLIST_OPENING_VERSION) {
+            window.localStorage.removeItem(storageId);
+            window.localStorage.removeItem(waitlistOpeningVersionKey());
+            return false;
+          }
+        }
+
         const response = await fetchWithTimeout(`/api/chat/${savedId}`);
         if (!response.ok) {
           window.localStorage.removeItem(storageId);
@@ -437,7 +456,14 @@ export function ChatDemo({
       const newId = data.session_id ?? null;
       setSessionId(newId);
       if (newId) {
-        window.localStorage.setItem(sessionStorageKey(surface), newId);
+        const sid = sessionStorageKey(surface);
+        window.localStorage.setItem(sid, newId);
+        if (surface === "waitlist") {
+          window.localStorage.setItem(
+            waitlistOpeningVersionKey(),
+            WAITLIST_OPENING_VERSION
+          );
+        }
       }
 
       const msgs = data.messages ?? [];

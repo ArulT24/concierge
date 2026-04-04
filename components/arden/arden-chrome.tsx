@@ -65,14 +65,27 @@ export function ArdenSiteHeader() {
       <div
         className="pointer-events-auto flex flex-row items-center gap-2.5 rounded-full border border-neutral-200/95 bg-white py-2 pl-2 pr-4 shadow-[0_12px_42px_-10px_rgba(0,0,0,0.45),0_6px_20px_-8px_rgba(0,0,0,0.28),0_0_0_1px_rgba(0,0,0,0.04)_inset] ring-1 ring-black/10"
       >
-        <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-neutral-950 text-white"
+        <svg
+          viewBox="0 0 36 36"
+          className="size-9 shrink-0"
           aria-hidden
+          xmlns="http://www.w3.org/2000/svg"
         >
-          <span className="translate-y-px font-sans text-[16px] font-bold leading-none tracking-tight">
-            B
-          </span>
-        </div>
+          <circle cx="18" cy="18" r="18" fill="#0a0a0a" />
+          <ellipse cx="13" cy="11" rx="5.5" ry="2.8" fill="#ffffff" opacity="0.14" />
+          <circle cx="18" cy="20" r="10.5" fill="#fafafa" />
+          <text
+            x="18"
+            y="24.5"
+            textAnchor="middle"
+            fill="#0a0a0a"
+            fontSize="15"
+            fontWeight="700"
+            fontFamily="ui-sans-serif, system-ui, sans-serif"
+          >
+            8
+          </text>
+        </svg>
         <span className="text-[17px] font-bold tracking-tight text-neutral-900 lowercase">
           bertram
         </span>

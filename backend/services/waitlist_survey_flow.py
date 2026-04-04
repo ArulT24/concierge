@@ -19,14 +19,10 @@ from backend.services.chat_sessions import (
 
 logger = get_logger(__name__)
 
+# If you edit this list, bump WAITLIST_OPENING_VERSION in components/chat-demo.tsx
+# so existing browsers start a fresh session instead of resuming old intro text.
 OPENING_MESSAGES: list[str] = [
-    (
-        "Hi, I am Bertram. Due to demand, I have to put you on the waitlist for now. "
-        "I will send you an email once you are off the waitlist."
-    ),
-    (
-        "In the meantime, I would love to understand what type of planning you would have me do."
-    ),
+    "Hi, I am bertram!",
     (
         "Here are some examples of what I can help you plan:\n\n"
         "• a birthday party\n"
@@ -82,13 +78,25 @@ def _keyword_category(text: str) -> str:
     return "other"
 
 
+WAITLIST_ACK_SECOND = "Due to demand, you are currently on our waitlist."
+WAITLIST_ACK_THIRD = "I will email you once you get off the waitlist!"
+
+
 async def _fallback_reply(user_text: str) -> tuple[str, str]:
     cat = _keyword_category(user_text)
-    body = (
-        "Awesome! I would love to make that happen for you. "
-        "I'll let you know once you're off the waitlist and we can get to planning!"
-    )
+    body = "Awesome! I would love to make that happen for you."
     return body, cat
+
+
+def _waitlist_reply_messages(acknowledgment: str) -> list[str]:
+    trimmed = acknowledgment.strip()
+    if not trimmed:
+        trimmed = "Thanks for sharing that with me!"
+    return [
+        trimmed,
+        WAITLIST_ACK_SECOND,
+        WAITLIST_ACK_THIRD,
+    ]
 
 
 async def start_waitlist_survey_session(
@@ -161,7 +169,7 @@ async def process_waitlist_survey_message(
 
     return ConversationResult(
         ready=False,
-        messages=[reply],
+        messages=_waitlist_reply_messages(reply),
         requirements=session.requirements,
         missing_fields=[],
         collected_fields=[],
