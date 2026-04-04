@@ -4,6 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { GoogleSignInButton } from "@/components/google-sign-in-button";
 
 export default function Home() {
   return (
@@ -14,8 +15,10 @@ export default function Home() {
             Coming soon
           </CardTitle>
           <CardDescription className="text-sm leading-relaxed text-white/60">
-            We&apos;re building something new. Check back shortly.
+            Sign in with Google to chat with Bertram, share what you need for
+            your event, and join the waitlist.
           </CardDescription>
+          <GoogleSignInButton className="mx-auto w-full max-w-sm rounded-xl bg-violet-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-violet-400 sm:w-auto sm:px-8" />
           <p className="border-t border-white/10 pt-5 text-sm leading-relaxed text-white/80">
             Think of Mrs. Doubtfire in the kitchen: someone who steps in, keeps
             the chaos off your plate, and makes sure everything feels handled
