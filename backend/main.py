@@ -10,6 +10,7 @@ from backend.config import get_settings
 from backend.database.connection import dispose_engine, get_engine
 from backend.logging_config import get_logger, setup_logging
 from backend.routers.chat import router as chat_router
+from backend.routers.landing_waitlist import router as landing_waitlist_router
 from backend.routers.pipeline import router as pipeline_router
 from backend.routers.scrape_vendor import router as scrape_vendor_router
 from backend.routers.search import router as search_router
@@ -62,6 +63,7 @@ app.include_router(pipeline_router)
 app.include_router(scrape_vendor_router)
 app.include_router(search_router)
 app.include_router(waitlist_router)
+app.include_router(landing_waitlist_router)
 app.include_router(whatsapp_router)
 
 
