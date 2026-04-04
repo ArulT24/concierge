@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Calendar, Check, PartyPopper } from "lucide-react";
+import { Cake, PartyPopper } from "lucide-react";
 import { signIn } from "next-auth/react";
 
 import {
@@ -215,109 +215,71 @@ function BubbleAssistant({ children }: { children: ReactNode }) {
 function VenueBookingCard() {
   return (
     <div
-      className={`ml-0 max-w-[min(92vw,400px)] overflow-hidden rounded-[16px] bg-white ${SOFT_SHADOW}`}
+      className={`ml-0 max-w-[min(92vw,400px)] overflow-hidden rounded-[16px] bg-white p-3.5 sm:p-4 ${SOFT_SHADOW}`}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2">
-        <span className="min-w-0 text-[11px] font-semibold leading-snug text-neutral-800 sm:text-xs">
-          Reservation · Sat, Apr 12 · 2:00–4:00 PM
-        </span>
-        <span
-          className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-          style={{ backgroundColor: BLUE }}
-        >
-          <Check className="size-3" strokeWidth={3} />
-          Confirmed
-        </span>
-      </div>
-      <div className="flex items-center gap-2.5 px-3 py-2">
+      <div className="flex gap-3">
         <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white"
           aria-hidden
         >
           <PartyPopper className="size-[1.35rem]" strokeWidth={2} />
         </div>
-        <div className="min-w-0">
-          <div className="text-[13px] font-semibold leading-tight text-neutral-900">
+        <div className="min-w-0 space-y-1">
+          <div className="text-[14px] font-semibold leading-snug text-neutral-900">
             Jump City · Party Room B
           </div>
-          <div className="text-[11px] leading-snug text-neutral-500">
-            Oak Park · bounce + pizza package
+          <div className="text-[12px] leading-snug text-neutral-500">
+            Sat, Apr 12 · 2:00–4:00 PM
+          </div>
+          <div className="text-[12px] leading-snug text-neutral-500">
+            Oak Park · bounce + pizza · Superheroes
           </div>
         </div>
-      </div>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 px-3 pb-2 pt-0.5">
-        <div>
-          <div className="text-[10px] font-medium text-neutral-500">Guests</div>
-          <div className="text-base font-bold leading-none text-neutral-900">~22</div>
-        </div>
-        <div className="flex max-w-[44%] flex-col items-center px-1 text-center">
-          <div className="flex w-full items-center gap-0.5 text-[10px] font-medium text-neutral-500">
-            <span className="h-px min-w-0 flex-1 bg-neutral-200" />
-            <Calendar className="size-3.5 shrink-0" style={{ color: BLUE }} />
-            <span className="h-px min-w-0 flex-1 bg-neutral-200" />
-          </div>
-          <div className="mt-0.5 text-[10px] leading-snug text-neutral-500">
-            Setup 1:15 PM · out 4:30
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-[10px] font-medium text-neutral-500">Theme</div>
-          <div className="text-[12px] font-bold leading-tight text-neutral-900">Superheroes</div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-2 border-t border-neutral-100 px-3 py-2">
-        <div className="flex items-center gap-1 rounded-lg bg-neutral-100 px-2 py-1 text-[11px] font-semibold text-neutral-700">
-          <span className="text-neutral-400">✦</span>
-          Leo turns 7
-        </div>
-        <button
-          type="button"
-          className="shrink-0 text-[11px] font-semibold"
-          style={{ color: BLUE }}
-        >
-          Open in bertram →
-        </button>
       </div>
     </div>
   );
 }
 
-const CAKE_FLAVORS: { title: string; detail: string }[] = [
-  { title: "Red velvet", detail: "Cream cheese frosting · classic" },
-  { title: "Dark chocolate raspberry", detail: "Ganache · gluten-friendly sponge avail." },
-  { title: "Earl Grey & honey", detail: "Lavender buttercream" },
-  { title: "Vanilla bean", detail: "Salted caramel filling" },
+const CAKE_MENU: { name: string; price: string }[] = [
+  { name: "Red velvet", price: "$44" },
+  { name: "Dark chocolate raspberry", price: "$52" },
+  { name: "Earl Grey & honey", price: "$48" },
+  { name: "Vanilla bean", price: "$42" },
 ];
 
 function CakeFlavorCard() {
+  /** BG bar (not border) so global `* { border-border }` does not hide rules on white cards. */
+  const betweenFlavorsRule =
+    "h-[0.5px] min-h-[0.5px] w-full shrink-0 bg-neutral-400/55";
+
   return (
     <div
-      className={`max-w-[min(92vw,400px)] overflow-hidden rounded-[16px] bg-white ${SOFT_SHADOW}`}
+      className={`max-w-[min(92vw,340px)] overflow-hidden rounded-[16px] bg-white ${SOFT_SHADOW}`}
     >
-      <div className="flex items-start justify-between gap-2 border-b border-neutral-100 px-3 py-2">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-neutral-500">
-            Oak Lane Bakery
-          </div>
-          <div className="text-[13px] font-semibold leading-snug text-neutral-900">
-            Today&apos;s cakes
-          </div>
-        </div>
-        <span
-          className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-          style={{ backgroundColor: BLUE }}
+      <div className="flex items-center gap-2.5 bg-gradient-to-b from-neutral-50/80 to-white px-3 py-2.5">
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#f3e9d7] ring-1 ring-amber-900/[0.08]"
+          aria-hidden
         >
-          Pick one
-        </span>
+          <Cake className="size-[1.1rem] text-[#5c4033]" strokeWidth={2} />
+        </div>
+        <div className="min-w-0 text-[12px] font-bold uppercase leading-tight tracking-[0.05em] text-neutral-900 sm:text-[13px]">
+          Oak Lane Bakery
+        </div>
       </div>
-      <ul className="divide-y divide-neutral-100">
-        {CAKE_FLAVORS.map((f) => (
-          <li key={f.title} className="px-3 py-1.5">
-            <div className="flex flex-col gap-0">
-              <span className="text-[13px] font-semibold leading-tight text-neutral-900">
-                {f.title}
+      <ul className="m-0 list-none px-3 pb-2 pt-0">
+        {CAKE_MENU.map((item, i) => (
+          <li key={item.name} className="m-0 p-0">
+            {i > 0 ? (
+              <div className={betweenFlavorsRule} aria-hidden />
+            ) : null}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2.5">
+              <span className="min-w-0 text-[12px] font-medium leading-snug text-neutral-900 sm:text-[13px]">
+                {item.name}
               </span>
-              <span className="text-[11px] leading-snug text-neutral-500">{f.detail}</span>
+              <span className="shrink-0 text-[12px] font-semibold tabular-nums tracking-tight text-neutral-800 sm:text-[13px]">
+                {item.price}
+              </span>
             </div>
           </li>
         ))}
@@ -332,17 +294,17 @@ function WaitlistPitchCard() {
       className={`max-w-[min(92vw,400px)] overflow-hidden rounded-[20px] bg-white ${SOFT_SHADOW}`}
     >
       <div className="border-b border-neutral-100 px-4 py-3">
-        <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-          Early access
+        <span className="text-xs font-semibold lowercase tracking-wide text-neutral-500">
+          bertram
         </span>
         <h3 className="mt-1 text-lg font-bold leading-snug text-neutral-900">
-          Join the bertram waitlist
+          Plan less, enjoy more!
         </h3>
       </div>
       <div className="px-4 py-4">
         <p className="text-[15px] leading-snug text-neutral-600">
           One assistant for kids&apos; parties, holiday get-togethers, trips, and vacation
-          itineraries — we keep vendors, dates, and details in one thread.
+          itineraries.
         </p>
         <button
           type="button"
@@ -355,7 +317,7 @@ function WaitlistPitchCard() {
             void signIn("google", { callbackUrl: "/chat" });
           }}
         >
-          Join the waitlist
+          Sign Up Today
         </button>
       </div>
     </div>
@@ -371,10 +333,10 @@ function PlanUpgradeCards() {
             Your draft
           </div>
           <div className="min-w-0 text-xs">
-            <div className="font-semibold text-neutral-900">Portland long weekend</div>
-            <div className="text-[11px] text-neutral-500">Fri–Mon · 2 adults · kid</div>
+            <div className="font-semibold text-neutral-900">Cancun getaway</div>
+            <div className="text-[11px] text-neutral-500">Sun–Sat · 2 adults · kid</div>
           </div>
-          <div className="mt-2 text-[11px] text-neutral-600">Hotels + car sketch only</div>
+          <div className="mt-2 text-[11px] text-neutral-600">Resort + transfer sketch only</div>
         </div>
         <div
           className={`rounded-[18px] bg-white p-3 ring-2 ring-[#1B6FF5] ${SOFT_SHADOW}`}
@@ -390,7 +352,7 @@ function PlanUpgradeCards() {
           </div>
           <div className="text-xl font-bold text-emerald-600">$265</div>
           <div className="text-[11px] font-medium" style={{ color: BLUE }}>
-            Day-by-day + reservations
+            Tours + day-by-day plan
           </div>
         </div>
       </div>
@@ -408,15 +370,18 @@ const SCENE1: Scene1Item[] = [
     kind: "user",
     text: "Can you help plan Leo's 7th birthday? Saturday April 12, mostly kids.",
   },
-  { kind: "assistant", text: "Absolutely — indoor or outdoor, and about how many guests?" },
+  {
+    kind: "assistant",
+    text: "Absolutely! Want it indoors or outdoors? How many guests are you expecting?",
+  },
   {
     kind: "user",
-    text: "Indoor. Maybe 18 kids plus a few parents — superheroes theme.",
+    text: "Indoor, around 15 kids plus a few parents. Can we do a superheroes theme?",
   },
   {
     kind: "assistant",
     text:
-      "Love it. I grabbed a bounce + pizza package at Jump City for that Saturday 2–4 slot — fits your headcount.",
+      "Love that idea. I can grab a bounce and pizza package at Jump City for a 2:00-4:00pm slot on Saturday. Check it out!",
   },
   { kind: "venue" },
 ];
@@ -433,13 +398,14 @@ const SCENE2: Scene2Item[] = [
   },
   {
     kind: "assistant",
-    text: "I've got you — calling the baker and ordering flowers in.",
+    text: "I've got you! Calling the baker and ordering flowers to your house.",
   },
   { kind: "cake_flavors" },
   { kind: "user", text: "Red velvet, please." },
   {
     kind: "assistant",
-    text: "Locked in — red velvet + flowers out the door. I'll remind you to pick up the cake at 6pm!",
+    text:
+      "I locked in red velvet and flowers. I'll remind you to pick up the cake at 6pm!",
   },
 ];
 
@@ -452,12 +418,15 @@ const SCENE3: Scene3Item[] = [
   {
     kind: "assistant",
     text:
-      "For your Portland trip draft, there’s a bundle to lock hotels + day-by-day plans — promo drops it to $265.",
+      "For your Cancun trip itinerary draft, there's a bundle for Chichen Itza, snorkeling, cenotes and ATVs. Promo drops it to $265 for the next week. What do you think?",
   },
   { kind: "upgrade" },
-  { kind: "user", text: "Yes — book that bundle for us." },
+  { kind: "user", text: "Sick, book that please." },
   { kind: "assistant", text: "Locked in. You’ll get the itinerary in-app." },
-  { kind: "assistant", text: "Charged the card on file (Amex ···1009)." },
+  {
+    kind: "assistant",
+    text: "I charged it to your VentureX card to get some points back.",
+  },
 ];
 
 type Scene4Item =
@@ -472,10 +441,10 @@ const SCENE4: Scene4Item[] = [
   },
   {
     kind: "assistant",
-    text: "I can help you plan less, enjoy more",
+    text: "Want to learn more?",
   },
+  { kind: "user", text: "Sure do!" },
   { kind: "waitlist_card" },
-  { kind: "user", text: "Yes — add me to the waitlist." },
 ];
 
 function SceneBlock({
@@ -498,7 +467,7 @@ function SceneBlock({
         </div>
       </div>
       {showScrollHint ? (
-        <p className="pointer-events-none absolute bottom-4 left-0 right-0 text-center text-xs text-neutral-400/90">
+        <p className="pointer-events-none absolute bottom-4 left-0 right-0 text-center text-xs font-bold text-neutral-900">
           Swipe or scroll for more
         </p>
       ) : null}
@@ -648,20 +617,6 @@ export function ArdenLanding() {
           <TypingBubble align={typingAlignScene4(SCENE4[s4State.revealed])} />
         )}
       </SceneBlock>
-
-      <footer className="flex min-h-[30vh] snap-start flex-col items-center justify-center gap-2 bg-transparent px-6 py-12">
-        <p className="text-center text-sm text-neutral-400">
-          Demo landing inspired by{" "}
-          <a
-            href="https://arden.co/"
-            className="font-medium text-neutral-300 underline decoration-neutral-500 underline-offset-2"
-            target="_blank"
-            rel="noreferrer"
-          >
-            arden.co
-          </a>
-        </p>
-      </footer>
       </div>
     </div>
   );
