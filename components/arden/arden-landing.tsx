@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { Calendar, Check, PartyPopper } from "lucide-react";
+import { signIn } from "next-auth/react";
 
 const BLUE = "#1B6FF5";
 
@@ -412,10 +413,13 @@ function WaitlistPitchCard() {
         </p>
         <button
           type="button"
-          className="mt-4 w-full rounded-full px-5 py-3 text-sm font-semibold text-white sm:py-2.5"
+          className="mt-4 w-full cursor-pointer rounded-full px-5 py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 sm:py-2.5"
           style={{
             backgroundColor: BLUE,
             boxShadow: "0 8px 28px -8px rgba(27,111,245,0.55)",
+          }}
+          onClick={() => {
+            void signIn("google", { callbackUrl: "/chat" });
           }}
         >
           Join the waitlist

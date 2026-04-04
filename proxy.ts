@@ -32,6 +32,7 @@ function isPublicFile(pathname: string): boolean {
 
 function isAllowedPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "") return true;
+  if (pathname === "/arden" || pathname.startsWith("/arden/")) return true;
   if (pathname === "/pixel") return true;
   if (pathname === "/api/landing-waitlist") return true;
   if (isPublicFile(pathname)) return true;
