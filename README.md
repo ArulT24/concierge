@@ -2,6 +2,24 @@
 
 AI event-planning backend with a web intake flow and a Twilio-powered WhatsApp intake path.
 
+## Web app (Next.js)
+
+The frontend in this repo is a small Next.js app focused on the **marketing landing** (`/`) and two authenticated surfaces:
+
+- **`/chat`** — **Waitlist survey** only (scripted Bertram intros, then free-form interest). The client always sends `flow: waitlist_survey` on new sessions. Survey fields live on `events` (`planning_interest_raw`, `planning_interest_category`, `waitlist_survey_completed_at`); run migration [`backend/database/migrations/004_waitlist_survey_analytics.sql`](backend/database/migrations/004_waitlist_survey_analytics.sql) if you have not yet.
+- **`/kids-bday`** — **Kids birthday intake** (`ConversationAgent`, vendor research when ready). The client sends `flow: party_intake`. Allowed only if the signed-in email has **party planning access** (table `party_planning_access` or env **`PARTY_PLANNING_ALLOWLIST_EMAILS`**). Others get HTTP 403. Send graduates to this URL after they’re off the waitlist.
+
+- **Auth:** Google sign-in via Auth.js (`/api/auth/*`). The landing CTA uses `signIn` with `callbackUrl: /chat`.
+- **New session API:** `POST /api/chat` must include JSON `flow`: `waitlist_survey` or `party_intake`. Next forwards `X-User-Email` when signed in. **WhatsApp** stays phone-based birthday intake only.
+- **Optional hardening:** When **`INTERNAL_CHAT_SECRET`** is set in both Next (`INTERNAL_CHAT_SECRET`) and FastAPI (`internal_chat_secret`), the chat routes require matching header `X-Internal-Chat-Secret`.
+- **API routes (Next → FastAPI):** `/api/chat`, `/api/chat/[sessionId]`, `/api/events/[sessionId]`, and `/api/waitlist` proxy to `BACKEND_URL` on the Python service.
+- **Backend-only:** `POST /api/landing-waitlist` on FastAPI still accepts email-only signups for alternate landings or scripts. The default Next landing uses Google sign-in instead, and the old Next proxy for `landing-waitlist` was removed.
+- **Run locally:** `npm install` then `npm run dev` (default [http://localhost:3000](http://localhost:3000)), with the backend on port 8000 and `BACKEND_URL` set accordingly (see `.env.example`).
+
+`proxy.ts` implements a **landing-only** mode used on Vercel by default (`VERCEL=1` enables it unless `LANDING_ONLY=0`). In that mode, only `/`, `/chat`, `/kids-bday` (with Auth.js), static assets, and `/api/auth/*` pass through; other routes—including `/api/chat` and `/api/waitlist`—return 404. **Set `LANDING_ONLY=0` in the Vercel env** when you deploy the full app so the Next API proxies can reach the backend.
+
+Operational UIs for the vendor **search / pipeline** used to live under Next.js (`/pipeline`, `/search-dashboard`, etc.); those pages were removed. Pipeline and search HTTP APIs remain on **FastAPI** for workers, scripts, and direct calls (see **Vendor pipeline** below).
+
 ## Backend setup
 
 ### Prerequisites
@@ -51,7 +69,13 @@ After all four Exa category tasks finish, a **Celery chord** runs `finalize_vend
 
 **Database upgrade (existing Supabase / Postgres):** run the SQL in `backend/database/migrations/002_vendor_pipeline.sql` once (SQL editor). New installs can use the full `backend/database/schema.sql`.
 
-**Monitoring UI:** [http://localhost:3000/pipeline?event=EVENT_UUID](http://localhost:3000/pipeline) — tabs *Monitor* (per-candidate stages) and *Ranked results* (`event_options`). Link from the search dashboard when an event id is filled in.
+**Inspecting pipeline state:** use the FastAPI OpenAPI UI at [http://localhost:8000/docs](http://localhost:8000/docs) (tag **pipeline**), or call `GET /api/pipeline/{event_id}` on the backend—for example:
+
+```bash
+curl "http://localhost:8000/api/pipeline/<EVENT_UUID>"
+```
+
+That response includes per-candidate stages, counts, and ranked `event_options`. To enqueue finalize manually when Exa data exists but candidates are missing, use `POST /api/pipeline/{event_id}/finalize` (also documented under `/docs`). **Search** run status and category results are available under the **search** tag (`/api/search/...`) on the same server.
 
 ## Run the backend
 

@@ -18,7 +18,13 @@ from backend.main import app
 from backend.models.event_request import EventRequirements
 from backend.routers import whatsapp as whatsapp_router
 from backend.services import conversation_flow
-from backend.services.chat_sessions import ChatSession, ChatSessionStore, SessionMessage
+from backend.services.chat_sessions import (
+    ChatProgress,
+    ChatSession,
+    ChatSessionStore,
+    SessionMessage,
+)
+from backend.services.waitlist_survey_flow import OPENING_MESSAGES
 
 
 @pytest.mark.asyncio
@@ -269,3 +275,179 @@ def test_whatsapp_webhook_sends_agent_reply(
     )
     assert session.messages[-1].sid == "SM-outbound"
     save_mock.assert_awaited_once()
+
+
+def test_post_chat_new_session_waitlist_survey_with_email(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.routers import chat as chat_module
+
+    fixed_id = str(uuid.uuid4())
+
+    async def fake_create(_db: object, **kwargs: object) -> ChatSession:
+        assert kwargs.get("event_type") == "waitlist_survey"
+        return ChatSession(session_id=fixed_id, event_type="waitlist_survey")
+
+    async def fake_start(session: ChatSession, _db: object) -> object:
+        assert session.event_type == "waitlist_survey"
+        return (
+            OPENING_MESSAGES,
+            ChatProgress(
+                collected_fields=[],
+                missing_fields=[],
+                completion_ratio=0.0,
+            ),
+        )
+
+    monkeypatch.setattr(chat_module.session_store, "create", fake_create)
+    monkeypatch.setattr(chat_module, "start_waitlist_survey_session", fake_start)
+
+    async def override_db() -> object:
+        yield object()
+
+    app.dependency_overrides[get_session] = override_db
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/chat",
+            json={"flow": "waitlist_survey"},
+            headers={"X-User-Email": "parent@example.com"},
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["chat_flow"] == "waitlist_survey"
+    assert data["messages"] == OPENING_MESSAGES
+
+
+def test_post_chat_new_session_party_forbidden_without_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.routers import chat as chat_module
+
+    monkeypatch.setattr(
+        chat_module,
+        "has_party_planning_access",
+        AsyncMock(return_value=False),
+    )
+
+    async def override_db() -> object:
+        yield object()
+
+    app.dependency_overrides[get_session] = override_db
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/chat",
+            json={"flow": "party_intake"},
+            headers={"X-User-Email": "stranger@example.com"},
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 403
+
+
+def test_post_chat_new_session_party_when_allowlisted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.routers import chat as chat_module
+
+    monkeypatch.setattr(
+        chat_module,
+        "has_party_planning_access",
+        AsyncMock(return_value=True),
+    )
+
+    fixed_id = str(uuid.uuid4())
+
+    async def fake_create(_db: object, **kwargs: object) -> ChatSession:
+        assert kwargs.get("event_type") == "birthday_party"
+        return ChatSession(session_id=fixed_id, event_type="birthday_party")
+
+    async def fake_start(_session: ChatSession, _db: object) -> object:
+        return (
+            [
+                "Hey there! I'd love to help plan an awesome birthday party. "
+                "Tell me a little about your kiddo — what's their name "
+                "and how old are they turning?"
+            ],
+            ChatProgress(
+                collected_fields=[],
+                missing_fields=["child_name"],
+                completion_ratio=0.0,
+            ),
+        )
+
+    monkeypatch.setattr(chat_module.session_store, "create", fake_create)
+    monkeypatch.setattr(chat_module, "start_session", fake_start)
+
+    async def override_db() -> object:
+        yield object()
+
+    app.dependency_overrides[get_session] = override_db
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/chat",
+            json={"flow": "party_intake"},
+            headers={"X-User-Email": "vip@example.com"},
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["chat_flow"] == "party_intake"
+    assert len(data["messages"]) == 1
+
+
+def test_post_chat_new_session_requires_flow() -> None:
+    async def override_db() -> object:
+        yield object()
+
+    app.dependency_overrides[get_session] = override_db
+
+    with TestClient(app) as client:
+        response = client.post("/api/chat", json={})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_process_incoming_message_waitlist_survey_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = ChatSession(
+        session_id=str(uuid.uuid4()),
+        event_type="waitlist_survey",
+    )
+    save_mock = AsyncMock()
+    monkeypatch.setattr(conversation_flow.session_store, "save", save_mock)
+
+    expected = ConversationResult(
+        ready=False,
+        messages=["Sounds great — we'll pick this up when you're off the waitlist!"],
+        requirements=session.requirements,
+        missing_fields=[],
+        collected_fields=[],
+    )
+
+    mock_survey = AsyncMock(return_value=expected)
+    monkeypatch.setattr(
+        "backend.services.waitlist_survey_flow.process_waitlist_survey_message",
+        mock_survey,
+    )
+
+    result = await conversation_flow.process_incoming_message(
+        session,
+        SessionMessage(role="user", content="Portugal itinerary"),
+        AsyncMock(),
+    )
+
+    assert result == expected
+    mock_survey.assert_awaited_once()

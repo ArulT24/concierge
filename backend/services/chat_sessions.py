@@ -25,6 +25,8 @@ class ChatProgress(BaseModel):
 
 class ChatSession(BaseModel):
     session_id: str
+    """Mirror of ``events.event_type`` — ``birthday_party`` or ``waitlist_survey``."""
+    event_type: str = "birthday_party"
     requirements: EventRequirements = Field(default_factory=EventRequirements)
     messages: list[SessionMessage] = Field(default_factory=list)
     _new_messages: list[SessionMessage] = []
@@ -45,10 +47,14 @@ class ChatSessionStore:
         db: AsyncSession,
         *,
         user_phone: str = "web-anonymous",
+        event_type: str = "birthday_party",
+        email: str | None = None,
     ) -> ChatSession:
+        normalized_email = email.strip().lower() if email and email.strip() else None
         event = EventRow(
             user_phone=user_phone,
-            event_type="birthday_party",
+            email=normalized_email,
+            event_type=event_type,
             status="intake",
             requirements={},
         )
@@ -56,7 +62,7 @@ class ChatSessionStore:
         await db.flush()
 
         session_id = str(event.id)
-        return ChatSession(session_id=session_id)
+        return ChatSession(session_id=session_id, event_type=event_type)
 
     async def create_for_phone(
         self,
@@ -95,6 +101,7 @@ class ChatSessionStore:
 
         return ChatSession(
             session_id=session_id,
+            event_type=event.event_type or "birthday_party",
             requirements=requirements,
             messages=messages,
         )

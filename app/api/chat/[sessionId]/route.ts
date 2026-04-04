@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { auth } from "@/auth";
+import { chatProxyHeaders } from "@/lib/backend-chat-headers";
+
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 export async function GET(
@@ -9,7 +12,12 @@ export async function GET(
   const { sessionId } = await params;
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/chat/${sessionId}`);
+    const session = await auth();
+    const forwardHeaders = chatProxyHeaders(session);
+
+    const response = await fetch(`${BACKEND_URL}/api/chat/${sessionId}`, {
+      headers: forwardHeaders,
+    });
     const raw = await response.text();
     let data: { detail?: string; error?: string } | null = null;
 

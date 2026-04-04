@@ -49,6 +49,11 @@ class EventRow(Base):
         index=True,
     )
     requirements: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    planning_interest_raw: Mapped[str | None] = mapped_column(Text, nullable=True)
+    planning_interest_category: Mapped[str | None] = mapped_column(Text, nullable=True)
+    waitlist_survey_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -250,6 +255,15 @@ class EventOptionRow(Base):
     event: Mapped[EventRow] = relationship(back_populates="event_options")
 
     __table_args__ = (Index("idx_event_options_event_id", "event_id"),)
+
+
+class PartyPlanningAccessRow(Base):
+    __tablename__ = "party_planning_access"
+
+    email: Mapped[str] = mapped_column(Text, primary_key=True)
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class LandingWaitlistRow(Base):

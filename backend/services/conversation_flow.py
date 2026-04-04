@@ -32,6 +32,11 @@ async def process_incoming_message(
     session.append_messages([user_message])
     await session_store.save(session, db)
 
+    if session.event_type == "waitlist_survey":
+        from backend.services.waitlist_survey_flow import process_waitlist_survey_message
+
+        return await process_waitlist_survey_message(session, db)
+
     result = await _agent.run(
         [message.model_dump(exclude_none=True) for message in session.messages],
         current_requirements=session.requirements,

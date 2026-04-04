@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     # ── CORS ──────────────────────────────────────
     cors_origins: str = ""
 
+    # ── Web chat: comma-separated emails that use full kids party intake ──
+    party_planning_allowlist_emails: str = ""
+
+    # Optional: Next.js → FastAPI shared secret (X-Internal-Chat-Secret header)
+    internal_chat_secret: str = ""
+
     @property
     def sync_database_url(self) -> str:
         """Swap asyncpg driver for psycopg2 (Alembic, Celery, etc.)."""

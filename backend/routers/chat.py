@@ -1,25 +1,33 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
-from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.config import get_settings
 from backend.database.connection import get_session
 from backend.logging_config import get_logger
 from backend.models.db import EventRow
 from backend.services.chat_sessions import ChatProgress, SessionMessage, session_store
 from backend.services.conversation_flow import build_progress, process_incoming_message, start_session
+from backend.services.party_planning_access import has_party_planning_access
+from backend.services.waitlist_survey_flow import start_waitlist_survey_session
 
 logger = get_logger(__name__)
 
 router = APIRouter()
 
+ChatFlow = Literal["party_intake", "waitlist_survey"]
+
 
 class ChatRequest(BaseModel):
     session_id: str | None = None
     message: str | None = None
+    """Set on new session only: which UI route started the chat (`/chat` vs `/kids-bday`)."""
+    flow: ChatFlow | None = None
 
 
 class ChatResponse(BaseModel):
@@ -28,6 +36,7 @@ class ChatResponse(BaseModel):
     showWaitlist: bool
     progress: ChatProgress
     plan_summary: str | None = None
+    chat_flow: ChatFlow = "party_intake"
 
 
 class SessionHistoryMessage(BaseModel):
@@ -40,16 +49,54 @@ class SessionResumeResponse(BaseModel):
     messages: list[SessionHistoryMessage]
     showWaitlist: bool
     progress: ChatProgress
+    chat_flow: ChatFlow = "party_intake"
+
+
+def _verify_internal_chat_secret(request: Request) -> None:
+    expected = (get_settings().internal_chat_secret or "").strip()
+    if not expected:
+        return
+    got = (request.headers.get("X-Internal-Chat-Secret") or "").strip()
+    if got != expected:
+        raise HTTPException(status_code=403, detail="Invalid or missing server secret.")
+
+
+def _header_email(request: Request) -> str | None:
+    raw = (request.headers.get("X-User-Email") or "").strip()
+    return raw or None
+
+
+def _chat_flow_for_session_event_type(event_type: str) -> ChatFlow:
+    return "waitlist_survey" if event_type == "waitlist_survey" else "party_intake"
 
 
 @router.get("/api/chat/{session_id}", response_model=SessionResumeResponse)
 async def resume_session(
     session_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> SessionResumeResponse:
+    _verify_internal_chat_secret(request)
     session = await session_store.get(session_id, db)
     if session is None:
         raise HTTPException(status_code=404, detail="Chat session not found.")
+
+    flow = _chat_flow_for_session_event_type(session.event_type)
+    if session.event_type == "waitlist_survey":
+        return SessionResumeResponse(
+            session_id=session.session_id,
+            messages=[
+                SessionHistoryMessage(role=m.role, content=m.content)
+                for m in session.messages
+            ],
+            showWaitlist=False,
+            progress=ChatProgress(
+                collected_fields=[],
+                missing_fields=[],
+                completion_ratio=0.0,
+            ),
+            chat_flow=flow,
+        )
 
     from backend.agents.conversation_agent import ConversationAgent
 
@@ -66,6 +113,7 @@ async def resume_session(
         ],
         showWaitlist=ready,
         progress=build_progress(collected, missing),
+        chat_flow=flow,
     )
 
 
@@ -127,16 +175,64 @@ async def _trigger_research_pipeline(
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> ChatResponse:
+    _verify_internal_chat_secret(http_request)
+    email = _header_email(http_request)
+
     if not request.session_id:
-        session = await session_store.create(db)
-        opening_messages, progress = await start_session(session, db)
-        return ChatResponse(
-            session_id=session.session_id,
-            messages=opening_messages,
-            showWaitlist=False,
-            progress=progress,
+        if request.flow is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing flow: send waitlist_survey or party_intake for a new chat.",
+            )
+
+        if request.flow == "waitlist_survey":
+            session = await session_store.create(
+                db,
+                user_phone="web-anonymous",
+                event_type="waitlist_survey",
+                email=email,
+            )
+            opening_messages, progress = await start_waitlist_survey_session(
+                session, db
+            )
+            return ChatResponse(
+                session_id=session.session_id,
+                messages=opening_messages,
+                showWaitlist=False,
+                progress=progress,
+                chat_flow="waitlist_survey",
+            )
+
+        if request.flow == "party_intake":
+            if not await has_party_planning_access(email, db):
+                raise HTTPException(
+                    status_code=403,
+                    detail=(
+                        "Kids party planning opens after you're off the waitlist. "
+                        "Use /chat first, or ask for access."
+                    ),
+                )
+            session = await session_store.create(
+                db,
+                user_phone="web-anonymous",
+                event_type="birthday_party",
+                email=email,
+            )
+            opening_messages, progress = await start_session(session, db)
+            return ChatResponse(
+                session_id=session.session_id,
+                messages=opening_messages,
+                showWaitlist=False,
+                progress=progress,
+                chat_flow="party_intake",
+            )
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid flow: use waitlist_survey or party_intake.",
         )
 
     session = await session_store.get(request.session_id, db)
@@ -157,8 +253,10 @@ async def chat(
     )
     await session_store.save(session, db)
 
+    flow = _chat_flow_for_session_event_type(session.event_type)
+
     plan_summary: str | None = None
-    if result.ready:
+    if session.event_type == "birthday_party" and result.ready:
         requirements_dict = result.requirements.model_dump(mode="json")
         plan_summary = await _trigger_research_pipeline(
             session.session_id, requirements_dict, db,
@@ -170,12 +268,20 @@ async def chat(
         ready=result.ready,
         reply_count=len(result.messages),
         search_dispatched=plan_summary is not None,
+        chat_flow=flow,
     )
 
     return ChatResponse(
         session_id=session.session_id,
         messages=result.messages,
-        showWaitlist=result.ready,
-        progress=build_progress(result.collected_fields, result.missing_fields),
+        showWaitlist=result.ready if session.event_type == "birthday_party" else False,
+        progress=build_progress(result.collected_fields, result.missing_fields)
+        if session.event_type == "birthday_party"
+        else ChatProgress(
+            collected_fields=[],
+            missing_fields=[],
+            completion_ratio=0.0,
+        ),
         plan_summary=plan_summary,
+        chat_flow=flow,
     )

@@ -1,14 +1,22 @@
 import { NextResponse } from "next/server";
 
+import { auth } from "@/auth";
+import { chatProxyHeaders } from "@/lib/backend-chat-headers";
+
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const session = await auth();
+    const forwardHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...chatProxyHeaders(session),
+    };
 
     const response = await fetch(`${BACKEND_URL}/api/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: forwardHeaders,
       body: JSON.stringify(body),
     });
 

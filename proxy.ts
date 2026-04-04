@@ -16,7 +16,7 @@ const chatAuth = auth((req) => {
 }) as unknown as NextMiddleware;
 
 /**
- * On Vercel, only the marketing landing and its waitlist proxy are exposed.
+ * On Vercel, only the marketing home (and auth for Google sign-in) are exposed.
  * Set LANDING_ONLY=0 in the Vercel project env to serve the full Next app.
  */
 function landingOnlyEnabled(): boolean {
@@ -32,10 +32,7 @@ function isPublicFile(pathname: string): boolean {
 
 function isAllowedPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "") return true;
-  /** Legacy marketing URL → `app/arden/page.tsx` redirects to `/`. */
-  if (pathname === "/arden" || pathname.startsWith("/arden/")) return true;
-  if (pathname === "/pixel") return true;
-  if (pathname === "/api/landing-waitlist") return true;
+  if (pathname.startsWith("/api/auth")) return true;
   if (isPublicFile(pathname)) return true;
   return false;
 }
@@ -43,7 +40,12 @@ function isAllowedPath(pathname: string): boolean {
 export function proxy(request: NextRequest, event: NextFetchEvent) {
   const pathname = request.nextUrl.pathname;
 
-  if (pathname === "/chat" || pathname.startsWith("/chat/")) {
+  if (
+    pathname === "/chat" ||
+    pathname.startsWith("/chat/") ||
+    pathname === "/kids-bday" ||
+    pathname.startsWith("/kids-bday/")
+  ) {
     return chatAuth(request, event);
   }
 

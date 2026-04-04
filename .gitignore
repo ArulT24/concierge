@@ -39,6 +39,7 @@ ENV/
 # Build / Dist
 dist/
 build/
+*.tsbuildinfo
 *.egg-info/
 .eggs/
 .next/

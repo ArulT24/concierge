@@ -19,12 +19,66 @@ type ChatMessage = {
 
 export type ChatDemoVariant = "public" | "authenticated";
 
+type ChatFlow = "party_intake" | "waitlist_survey";
+
+const SESSION_STORAGE_WAITLIST = "concierge_session_waitlist";
+const SESSION_STORAGE_KIDS = "concierge_session_kids_party";
+
+function sessionStorageKey(surface: "waitlist" | "kids_party"): string {
+  return surface === "kids_party" ? SESSION_STORAGE_KIDS : SESSION_STORAGE_WAITLIST;
+}
+
+function apiFlowForSurface(surface: "waitlist" | "kids_party"): ChatFlow {
+  return surface === "kids_party" ? "party_intake" : "waitlist_survey";
+}
+
+/** Match `arden-landing` iMessage-style pacing between assistant bubbles. */
+const ASSISTANT_BATCH_TYPING_MS = 480;
+const ASSISTANT_BATCH_PAUSE_MS = 420;
+
+type PendingAssistantReveal = {
+  lines: string[];
+  /** `replace`: chat was empty (new session / resume opener). `append`: add after existing scrollback. */
+  mode: "replace" | "append";
+  /** After stagger (replace only), append these without delay. */
+  tail?: ChatMessage[];
+};
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function shouldStaggerAssistantBatch(isArden: boolean, lineCount: number): boolean {
+  return isArden && lineCount > 1 && !prefersReducedMotion();
+}
+
 function createId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
 
   return Math.random().toString(36).slice(2);
+}
+
+/** Leading assistant messages before the first user turn (waitlist openers). */
+function takeLeadingAssistantPrefix(
+  rows: Array<{ role: string; content: string }>
+): { prefix: string[]; rest: ChatMessage[] } {
+  const prefix: string[] = [];
+  let i = 0;
+  for (; i < rows.length; i++) {
+    const r = rows[i]!;
+    if (r.role !== "assistant") break;
+    prefix.push(r.content);
+  }
+  const rest: ChatMessage[] = rows.slice(i).map((msg) => ({
+    id: createId(),
+    role: msg.role as ChatRole,
+    content: msg.content,
+    type: "text" as const,
+  }));
+  return { prefix, rest };
 }
 
 function sleep(ms: number) {
@@ -107,11 +161,14 @@ export type ChatDemoTheme = "violet" | "arden";
 type ChatDemoProps = {
   variant?: ChatDemoVariant;
   theme?: ChatDemoTheme;
+  /** `/chat` = waitlist survey; `/kids-bday` = party intake (allowlisted users). */
+  surface?: "waitlist" | "kids_party";
 };
 
 export function ChatDemo({
   variant = "authenticated",
   theme = "violet",
+  surface = "waitlist",
 }: ChatDemoProps) {
   const isArden = theme === "arden";
   const { data: session, status: sessionStatus } = useSession();
@@ -124,18 +181,26 @@ export function ChatDemo({
   const [pendingAutoWaitlist, setPendingAutoWaitlist] = useState(false);
   const [autoWaitlistBusy, setAutoWaitlistBusy] = useState(false);
   const [autoWaitlistRetryVisible, setAutoWaitlistRetryVisible] = useState(false);
+  const [chatFlow, setChatFlow] = useState<ChatFlow | null>(null);
   const [chatKey, setChatKey] = useState(0);
+  /** Multi-bubble assistant lines; shown one-by-one (Arden, iMessage-style). */
+  const [pendingAssistantReveal, setPendingAssistantReveal] =
+    useState<PendingAssistantReveal | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const autoWaitlistInFlight = useRef(false);
+  const surveyEmailRegisteredRef = useRef(false);
+  const assistantRevealRunIdRef = useRef(0);
 
+  const isWaitlistSurvey = chatFlow === "waitlist_survey";
   const chatLocked =
-    waitlistSubmitted ||
-    autoWaitlistBusy ||
-    pendingAutoWaitlist ||
-    autoWaitlistRetryVisible;
+    !isWaitlistSurvey &&
+    (waitlistSubmitted ||
+      autoWaitlistBusy ||
+      pendingAutoWaitlist ||
+      autoWaitlistRetryVisible);
 
   const startNewChat = useCallback(() => {
-    window.localStorage.removeItem("concierge_session_id");
+    window.localStorage.removeItem(sessionStorageKey(surface));
     setMessages([]);
     setSessionId(null);
     setInput("");
@@ -145,21 +210,118 @@ export function ChatDemo({
     setPendingAutoWaitlist(false);
     setAutoWaitlistBusy(false);
     setAutoWaitlistRetryVisible(false);
+    setChatFlow(null);
     autoWaitlistInFlight.current = false;
+    surveyEmailRegisteredRef.current = false;
+    setPendingAssistantReveal(null);
     setChatKey((k) => k + 1);
-  }, []);
+  }, [surface]);
+
+  useEffect(() => {
+    if (!pendingAssistantReveal?.lines.length) return;
+
+    const job = pendingAssistantReveal;
+    const lines = job.lines;
+    const runId = ++assistantRevealRunIdRef.current;
+    let cancelled = false;
+    const timeouts: number[] = [];
+    const msgIds = lines.map(() => createId());
+
+    const buildAssistantMsgs = () =>
+      lines.map((content, i) => ({
+        id: msgIds[i]!,
+        role: "assistant" as const,
+        content,
+        type: "text" as const,
+      }));
+
+    const flushAll = () => {
+      const newBubbles = buildAssistantMsgs();
+      const tail = job.tail ?? [];
+      if (job.mode === "replace") {
+        setMessages([...newBubbles, ...tail]);
+      } else {
+        setMessages((prev) => [...prev, ...newBubbles, ...tail]);
+      }
+      setPendingAssistantReveal(null);
+      setIsTyping(false);
+    };
+
+    if (!shouldStaggerAssistantBatch(isArden, lines.length)) {
+      flushAll();
+      return;
+    }
+
+    if (job.mode === "replace") {
+      setMessages([]);
+    }
+
+    let step = 0;
+
+    const finishJob = () => {
+      if (job.tail?.length) {
+        setMessages((prev) => [...prev, ...job.tail!]);
+      }
+      setPendingAssistantReveal(null);
+      setIsTyping(false);
+    };
+
+    const typingThenReveal = () => {
+      if (cancelled || runId !== assistantRevealRunIdRef.current) {
+        return;
+      }
+      if (step >= lines.length) {
+        finishJob();
+        return;
+      }
+      setIsTyping(true);
+      const tReveal = window.setTimeout(() => {
+        if (cancelled || runId !== assistantRevealRunIdRef.current) return;
+        setIsTyping(false);
+        const idx = step;
+        step += 1;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: msgIds[idx]!,
+            role: "assistant",
+            content: lines[idx]!,
+            type: "text",
+          },
+        ]);
+        if (step < lines.length) {
+          const tNext = window.setTimeout(
+            typingThenReveal,
+            ASSISTANT_BATCH_PAUSE_MS
+          );
+          timeouts.push(tNext);
+        } else {
+          finishJob();
+        }
+      }, ASSISTANT_BATCH_TYPING_MS);
+      timeouts.push(tReveal);
+    };
+
+    typingThenReveal();
+
+    return () => {
+      cancelled = true;
+      timeouts.forEach((id) => window.clearTimeout(id));
+    };
+  }, [pendingAssistantReveal, isArden]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function tryResumeSession(): Promise<boolean> {
       try {
-        const savedId = window.localStorage.getItem("concierge_session_id");
+        const storageId = sessionStorageKey(surface);
+        const savedId = window.localStorage.getItem(storageId);
         if (!savedId) return false;
 
         const response = await fetchWithTimeout(`/api/chat/${savedId}`);
         if (!response.ok) {
-          window.localStorage.removeItem("concierge_session_id");
+          window.localStorage.removeItem(storageId);
           return false;
         }
 
@@ -167,27 +329,30 @@ export function ChatDemo({
           session_id?: string;
           messages?: Array<{ role: string; content: string }>;
           showWaitlist?: boolean;
+          chat_flow?: ChatFlow;
         };
 
         if (cancelled || !data.messages?.length) return false;
 
+        const flow: ChatFlow =
+          data.chat_flow === "waitlist_survey"
+            ? "waitlist_survey"
+            : "party_intake";
+        setChatFlow(flow);
+
         setSessionId(data.session_id ?? savedId);
-        setMessages(
-          data.messages.map((msg) => ({
-            id: createId(),
-            role: msg.role as ChatRole,
-            content: msg.content,
-            type: "text" as const,
-          }))
-        );
 
-        if (data.showWaitlist && variant === "authenticated") {
-          setPendingAutoWaitlist(true);
-        }
+        const { prefix, rest } = takeLeadingAssistantPrefix(data.messages);
+        const resumeWaitlistStagger =
+          flow === "waitlist_survey" &&
+          isArden &&
+          surface === "waitlist" &&
+          shouldStaggerAssistantBatch(isArden, prefix.length);
 
+        let resumeTail = rest;
         if (data.showWaitlist && variant === "public") {
-          setMessages((current) => [
-            ...current,
+          resumeTail = [
+            ...rest,
             {
               id: createId(),
               role: "assistant",
@@ -195,55 +360,113 @@ export function ChatDemo({
                 "Thanks for sharing your party details. Sign in with Google on the home page to save your spot on the waitlist.",
               type: "text",
             },
-          ]);
+          ];
+        }
+
+        if (resumeWaitlistStagger) {
+          setMessages([]);
+          setPendingAssistantReveal({
+            lines: prefix,
+            mode: "replace",
+            tail: resumeTail,
+          });
+        } else {
+          setMessages(
+            data.messages.map((msg) => ({
+              id: createId(),
+              role: msg.role as ChatRole,
+              content: msg.content,
+              type: "text" as const,
+            }))
+          );
+          if (data.showWaitlist && variant === "public") {
+            setMessages((current) => [
+              ...current,
+              {
+                id: createId(),
+                role: "assistant",
+                content:
+                  "Thanks for sharing your party details. Sign in with Google on the home page to save your spot on the waitlist.",
+                type: "text",
+              },
+            ]);
+          }
+        }
+
+        if (
+          data.showWaitlist &&
+          variant === "authenticated" &&
+          flow === "party_intake"
+        ) {
+          setPendingAutoWaitlist(true);
         }
 
         return true;
       } catch {
-        window.localStorage.removeItem("concierge_session_id");
+        window.localStorage.removeItem(sessionStorageKey(surface));
         return false;
       }
     }
 
-    async function startNewSession() {
+    async function startNewSession(): Promise<boolean> {
       const response = await fetchWithTimeout("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ flow: apiFlowForSurface(surface) }),
       });
 
       const data = (await response.json()) as {
         session_id?: string;
         messages?: string[];
         error?: string;
+        chat_flow?: ChatFlow;
       };
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not start chat.");
       }
 
-      if (cancelled) return;
+      if (cancelled) return false;
+
+      const flow: ChatFlow =
+        data.chat_flow === "waitlist_survey"
+          ? "waitlist_survey"
+          : "party_intake";
+      setChatFlow(flow);
 
       const newId = data.session_id ?? null;
       setSessionId(newId);
       if (newId) {
-        window.localStorage.setItem("concierge_session_id", newId);
+        window.localStorage.setItem(sessionStorageKey(surface), newId);
       }
+
+      const msgs = data.messages ?? [];
+      const useStaggeredOpeners =
+        msgs.length > 1 && shouldStaggerAssistantBatch(isArden, msgs.length);
+
+      if (useStaggeredOpeners) {
+        setMessages([]);
+        setPendingAssistantReveal({ lines: msgs, mode: "replace" });
+        return true;
+      }
+
       setMessages(
-        (data.messages ?? []).map((content) => ({
+        msgs.map((content) => ({
           id: createId(),
           role: "assistant" as const,
           content,
           type: "text" as const,
         }))
       );
+      return false;
     }
 
     async function initializeChat() {
+      let keepTypingUntilIntroDone = false;
       try {
         const resumed = await tryResumeSession();
         if (!resumed && !cancelled) {
-          await startNewSession();
+          keepTypingUntilIntroDone = await startNewSession();
         }
       } catch (chatError) {
         if (cancelled) return;
@@ -259,7 +482,7 @@ export function ChatDemo({
           },
         ]);
       } finally {
-        if (!cancelled) {
+        if (!cancelled && !keepTypingUntilIntroDone) {
           setIsTyping(false);
         }
       }
@@ -270,10 +493,15 @@ export function ChatDemo({
     return () => {
       cancelled = true;
     };
-  }, [chatKey, variant]);
+  }, [chatKey, variant, surface, theme]);
 
   useEffect(() => {
-    if (variant !== "authenticated" || !pendingAutoWaitlist || !sessionId) {
+    if (
+      variant !== "authenticated" ||
+      !pendingAutoWaitlist ||
+      !sessionId ||
+      chatFlow === "waitlist_survey"
+    ) {
       return;
     }
 
@@ -401,7 +629,83 @@ export function ChatDemo({
     return () => {
       cancelled = true;
     };
-  }, [pendingAutoWaitlist, sessionId, session, sessionStatus, variant]);
+  }, [pendingAutoWaitlist, sessionId, session, sessionStatus, variant, chatFlow]);
+
+  useEffect(() => {
+    if (
+      variant !== "authenticated" ||
+      chatFlow !== "waitlist_survey" ||
+      !sessionId ||
+      sessionStatus === "loading"
+    ) {
+      return;
+    }
+
+    if (sessionStatus === "unauthenticated") {
+      return;
+    }
+
+    const email = session?.user?.email?.trim();
+    if (!email || surveyEmailRegisteredRef.current) {
+      return;
+    }
+
+    const userTurns = messages.filter((m) => m.role === "user").length;
+    const assistantTurns = messages.filter((m) => m.role === "assistant").length;
+    if (userTurns > 0 || assistantTurns < 4) {
+      return;
+    }
+
+    let cancelled = false;
+    surveyEmailRegisteredRef.current = true;
+
+    async function registerSurveyEmail() {
+      try {
+        const wlResponse = await fetchWithTimeout("/api/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            email,
+            city: "Waitlist survey",
+          }),
+        });
+
+        const wlData = (await wlResponse.json()) as {
+          message?: string;
+          error?: string;
+        };
+
+        if (!wlResponse.ok) {
+          throw new Error(wlData.error ?? "Could not save your waitlist spot.");
+        }
+
+        if (cancelled) return;
+      } catch (err) {
+        surveyEmailRegisteredRef.current = false;
+        if (cancelled) return;
+        const text =
+          err instanceof Error
+            ? err.message
+            : "Something went wrong saving your waitlist spot.";
+        setMessages((current) => [
+          ...current,
+          {
+            id: createId(),
+            role: "assistant",
+            content: text,
+            type: "text",
+          },
+        ]);
+      }
+    }
+
+    void registerSurveyEmail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [variant, chatFlow, sessionId, session, sessionStatus, messages]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -436,6 +740,8 @@ export function ChatDemo({
     setIsSending(true);
     setIsTyping(true);
 
+    let queueStaggeredReply = false;
+
     try {
       const response = await fetchWithTimeout("/api/chat", {
         method: "POST",
@@ -452,6 +758,7 @@ export function ChatDemo({
         session_id?: string;
         messages?: string[];
         showWaitlist?: boolean;
+        chat_flow?: ChatFlow;
         error?: string;
       };
 
@@ -463,34 +770,60 @@ export function ChatDemo({
       const updatedId = data.session_id ?? sessionId;
       setSessionId(updatedId);
       if (updatedId) {
-        window.localStorage.setItem("concierge_session_id", updatedId);
+        window.localStorage.setItem(sessionStorageKey(surface), updatedId);
       }
 
-      setMessages((current) => {
-        const additions: ChatMessage[] = (data.messages ?? []).map((content) => ({
-          id: createId(),
-          role: "assistant",
-          content,
-          type: "text",
-        }));
+      const nextFlow: ChatFlow =
+        data.chat_flow === "waitlist_survey" ? "waitlist_survey" : "party_intake";
+      setChatFlow(nextFlow);
 
-        return [...current, ...additions];
-      });
+      const assistantLines = data.messages ?? [];
+      queueStaggeredReply =
+        assistantLines.length > 1 &&
+        shouldStaggerAssistantBatch(isArden, assistantLines.length);
 
-      if (data.showWaitlist && !waitlistSubmitted) {
+      if (queueStaggeredReply) {
+        setPendingAssistantReveal({
+          lines: assistantLines,
+          mode: "append",
+        });
+      } else {
+        setMessages((current) => {
+          const additions: ChatMessage[] = assistantLines.map((content) => ({
+            id: createId(),
+            role: "assistant",
+            content,
+            type: "text",
+          }));
+
+          return [...current, ...additions];
+        });
+      }
+
+      if (
+        data.showWaitlist &&
+        !waitlistSubmitted &&
+        nextFlow === "party_intake"
+      ) {
         if (variant === "authenticated") {
           setPendingAutoWaitlist(true);
         } else {
-          setMessages((current) => [
-            ...current,
-            {
-              id: createId(),
-              role: "assistant",
-              content:
-                "Thanks for sharing your party details. Sign in with Google on the home page to save your spot on the waitlist.",
-              type: "text",
-            },
-          ]);
+          const signInNudge: ChatMessage = {
+            id: createId(),
+            role: "assistant",
+            content:
+              "Thanks for sharing your party details. Sign in with Google on the home page to save your spot on the waitlist.",
+            type: "text",
+          };
+          if (queueStaggeredReply) {
+            setPendingAssistantReveal((p) =>
+              p
+                ? { ...p, tail: [...(p.tail ?? []), signInNudge] }
+                : p
+            );
+          } else {
+            setMessages((current) => [...current, signInNudge]);
+          }
         }
       }
     } catch (chatError) {
@@ -508,7 +841,9 @@ export function ChatDemo({
       ]);
     } finally {
       setIsSending(false);
-      setIsTyping(false);
+      if (!queueStaggeredReply) {
+        setIsTyping(false);
+      }
     }
   }
 

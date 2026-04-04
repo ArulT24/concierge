@@ -40,19 +40,29 @@ CREATE TYPE vendor_candidate_stage AS ENUM (
 -- ── Events ──────────────────────────────────────────
 
 CREATE TABLE events (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_phone    TEXT        NOT NULL,
-    email         TEXT,
-    city          TEXT,
-    event_type    TEXT        NOT NULL DEFAULT 'birthday_party',
-    status        event_status NOT NULL DEFAULT 'intake',
-    requirements  JSONB       NOT NULL DEFAULT '{}',
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_phone                    TEXT        NOT NULL,
+    email                         TEXT,
+    city                          TEXT,
+    event_type                    TEXT        NOT NULL DEFAULT 'birthday_party',
+    status                        event_status NOT NULL DEFAULT 'intake',
+    requirements                  JSONB       NOT NULL DEFAULT '{}',
+    planning_interest_raw         TEXT,
+    planning_interest_category    TEXT,
+    waitlist_survey_completed_at  TIMESTAMPTZ,
+    created_at                    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_events_user_phone ON events (user_phone);
 CREATE INDEX idx_events_status     ON events (status);
+
+-- ── Party planning access (web /chat — kids intake) ───
+
+CREATE TABLE party_planning_access (
+    email      TEXT PRIMARY KEY,
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- ── Messages ────────────────────────────────────────
 
