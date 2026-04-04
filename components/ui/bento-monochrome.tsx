@@ -12,9 +12,7 @@ import {
   Users,
   UtensilsCrossed,
   PartyPopper,
-  ArrowLeft,
 } from "lucide-react";
-import Link from "next/link";
 
 type PartyRequirements = {
   child_name?: string;
@@ -300,26 +298,9 @@ function FeaturesSectionMinimal({
         ref={sectionRef}
         className="relative mx-auto max-w-5xl px-6 py-16 sm:py-24"
       >
-        {/* Back link */}
-        <div
-          style={{
-            opacity: visible ? 1 : 0,
-            transform: visible ? "translateY(0)" : "translateY(16px)",
-            transition: "opacity 0.5s ease, transform 0.5s ease",
-          }}
-        >
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to chat
-          </Link>
-        </div>
-
         {/* Hero */}
         <header
-          className="mt-8 mb-12"
+          className="mb-12"
           style={{
             opacity: visible ? 1 : 0,
             transform: visible ? "translateY(0)" : "translateY(24px)",
@@ -457,12 +438,6 @@ function FeaturesSectionMinimal({
           <span className="text-xs tracking-wide text-slate-500">
             Concierge
           </span>
-          <Link
-            href="/"
-            className="text-xs text-slate-500 transition-colors hover:text-white"
-          >
-            Back to chat
-          </Link>
         </footer>
       </section>
     </div>

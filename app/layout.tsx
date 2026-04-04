@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
+import { AppSessionProvider } from "@/components/session-provider";
+
 import "./globals.css";
 
 const inter = Inter({
@@ -8,9 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Birthday Party Planner",
-  description:
-    "AI birthday party planning demo that helps parents build a party plan and join the waitlist.",
+  title: "Bertram — Coming soon",
+  description: "Plan your event with Bertram and join the waitlist.",
 };
 
 export default function RootLayout({
@@ -20,7 +21,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <AppSessionProvider>{children}</AppSessionProvider>
+      </body>
     </html>
   );
 }

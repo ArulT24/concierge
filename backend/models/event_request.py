@@ -18,6 +18,14 @@ class EventStatus(str, Enum):
     ARCHIVED = "archived"
 
 
+SEARCH_MINIMUM_FIELDS = {
+    "zip_code": "We need a location to search for vendors.",
+    "guest_count": "We need a guest count to find appropriately sized venues.",
+    "child_age": "We need the child's age to find age-appropriate options.",
+    "theme": "We need a theme to tailor the search results.",
+}
+
+
 class EventRequirements(BaseModel):
     """Structured requirements extracted by the conversation agent."""
 
@@ -39,6 +47,24 @@ class EventRequirements(BaseModel):
     entertainment_preferences: str = ""
     dietary_restrictions: list[str] = Field(default_factory=list)
     notes: str = ""
+
+    def missing_search_field_names(self) -> list[str]:
+        """Field names still missing for a useful vendor search (deterministic)."""
+        missing: list[str] = []
+        for field_name in SEARCH_MINIMUM_FIELDS:
+            value = getattr(self, field_name, None)
+            if value is None or (isinstance(value, str) and not value.strip()):
+                missing.append(field_name)
+        return missing
+
+    def search_ready(self) -> tuple[bool, list[str]]:
+        """Check if we have enough info to run a useful vendor search.
+
+        Returns (is_ready, list_of_missing_reason_strings).
+        """
+        names = self.missing_search_field_names()
+        reasons = [SEARCH_MINIMUM_FIELDS[n] for n in names]
+        return len(names) == 0, reasons
 
 
 class InboundMessage(BaseModel):

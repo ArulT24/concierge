@@ -4,6 +4,7 @@ uvicorn[standard]>=0.32.0
 pydantic>=2.10.0
 email-validator>=2.0.0
 pydantic-settings>=2.6.0
+python-multipart>=0.0.18
 
 # Async HTTP
 httpx>=0.28.0
@@ -20,9 +21,16 @@ redis>=5.2.0
 
 # AI
 openai>=1.57.0
+anthropic>=0.45.0
+exa-py>=1.9.0
 
 # Integrations
 twilio>=9.4.0
+
+# Browser automation (vendor site enrichment via Browserbase)
+browserbase>=1.7.0
+playwright>=1.58.0
+beautifulsoup4>=4.12.0
 
 # Logging
 structlog>=24.4.0

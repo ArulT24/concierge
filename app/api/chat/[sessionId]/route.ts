@@ -10,21 +10,36 @@ export async function GET(
 
   try {
     const response = await fetch(`${BACKEND_URL}/api/chat/${sessionId}`);
-    const data = await response.json();
+    const raw = await response.text();
+    let data: { detail?: string; error?: string } | null = null;
+
+    try {
+      data = raw ? (JSON.parse(raw) as { detail?: string; error?: string }) : null;
+    } catch {
+      data = null;
+    }
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.detail ?? "Could not resume session." },
+        {
+          error:
+            data?.detail ??
+            data?.error ??
+            (raw.trim() || "Could not resume session."),
+        },
         { status: response.status }
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data ?? {});
   } catch (error) {
     console.error("Chat resume proxy error:", error);
 
     return NextResponse.json(
-      { error: "Could not reach the backend." },
+      {
+        error:
+          "Could not reach the planning assistant. Start the backend: uvicorn backend.main:app --reload",
+      },
       { status: 502 }
     );
   }

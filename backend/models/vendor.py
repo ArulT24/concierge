@@ -25,6 +25,8 @@ class VendorSearchResult(BaseModel):
     website: str = ""
     source: str = ""
     description: str = ""
+    exa_url: str = ""
+    exa_score: float | None = None
 
 
 class VendorOption(BaseModel):

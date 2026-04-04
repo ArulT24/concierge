@@ -1,0 +1,16 @@
+# Keep Vercel deployments limited to the Next.js app (no Python backend upload)
+backend/
+requirements.txt
+Dockerfile
+docker-compose.yml
+.venv/
+venv/
+ENV/
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.eggs/
+# Local / editor noise not needed for build
+.cursor/
+*.log

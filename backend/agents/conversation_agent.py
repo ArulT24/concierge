@@ -34,8 +34,16 @@ You do NOT need to ask about every single field — some are optional. \
 The required fields to finish intake are: child_name, child_age, event_date, \
 event_time, guest_count, zip_code, budget (low or high), and theme.
 
-When all required fields are filled, set ready=true and give a brief, \
-enthusiastic wrap-up message summarizing what you know.
+We also need enough detail to run local vendor search: a real zip or postal area, \
+approximate guest count, the child's age, and a party theme. If any of these are \
+missing or vague, keep the conversation going with a friendly follow-up — do not \
+rush to wrap up.
+
+When every required field is filled and you have no more questions for the parent, \
+give a brief enthusiastic wrap-up **without ending in a question** so we can show \
+the waitlist. If you are still asking optional follow-ups (food, snacks, dietary, \
+etc.), end your reply with that question — the waitlist will appear only after they \
+answer and you send a closing message without a question mark.
 
 ### Extraction rules
 - Normalize values (ISO dates/times, integers for counts/ages, etc.).
@@ -62,6 +70,13 @@ INITIAL_MESSAGES = [
     "Tell me a little about your kiddo — what's their name and how old are they turning?"
 ]
 
+FINAL_WAITLIST_MESSAGE = "Welcome to the waitlist, we will shoot you a text when you get off!"
+
+
+def _reply_asks_follow_up(reply: str) -> bool:
+    """True if the assistant is still inviting another user turn (e.g. optional questions)."""
+    return "?" in reply
+
 
 class ConversationTurn(BaseModel):
     """Combined LLM output: extracted requirements + natural reply."""
@@ -71,7 +86,11 @@ class ConversationTurn(BaseModel):
     )
     ready: bool = Field(
         default=False,
-        description="True when all required fields are filled and intake is complete.",
+        description=(
+            "Set true when you believe intake is complete. The server recomputes "
+            "completion from structured fields — if anything is still missing, "
+            "the user will stay in chat."
+        ),
     )
     child_name: str | None = None
     child_age: int | None = None
@@ -154,9 +173,21 @@ class ConversationAgent(BaseAgent[ConversationTurn]):
         missing = self._missing_fields(merged)
         collected = self._collected_fields(merged)
 
+        # Required + search minimums must be satisfied before we can finish.
+        requirements_complete = len(missing) == 0
+        # Do not show waitlist / trigger search on the same turn the model is still
+        # asking an optional follow-up (food, dietary, etc.) — wait for the user's answer.
+        still_asking = _reply_asks_follow_up(turn.reply)
+        ready = requirements_complete and not still_asking
+        replies = (
+            [turn.reply, FINAL_WAITLIST_MESSAGE]
+            if ready
+            else [turn.reply]
+        )
+
         return ConversationResult(
-            ready=turn.ready and len(missing) == 0,
-            messages=[turn.reply],
+            ready=ready,
+            messages=replies,
             requirements=merged,
             missing_fields=missing,
             collected_fields=collected,
@@ -264,5 +295,9 @@ class ConversationAgent(BaseAgent[ConversationTurn]):
             missing.append("budget")
         if not requirements.theme.strip():
             missing.append("theme")
+
+        for name in requirements.missing_search_field_names():
+            if name not in missing:
+                missing.append(name)
 
         return missing

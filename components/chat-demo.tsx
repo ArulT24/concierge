@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Mail, RotateCcw, Send, Sparkles } from "lucide-react";
+import { RotateCcw, Send, Sparkles } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 import { cn } from "@/lib/utils";
 
 type ChatRole = "assistant" | "user";
-type ChatMessageType = "text" | "waitlist";
+type ChatMessageType = "text";
 
 type ChatMessage = {
   id: string;
@@ -15,6 +15,8 @@ type ChatMessage = {
   content: string;
   type?: ChatMessageType;
 };
+
+export type ChatDemoVariant = "public" | "authenticated";
 
 function createId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -68,117 +70,30 @@ function TypingBubble() {
   );
 }
 
-type WaitlistFormProps = {
-  disabled: boolean;
-  sessionId: string | null;
-  onSuccess: (message: string) => void;
+type ChatDemoProps = {
+  variant?: ChatDemoVariant;
 };
 
-function WaitlistForm({ disabled, sessionId, onSuccess }: WaitlistFormProps) {
-  const [email, setEmail] = useState("");
-  const [city, setCity] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (disabled || isSubmitting) {
-      return;
-    }
-
-    setError("");
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ session_id: sessionId, email, city }),
-      });
-
-      const data = (await response.json()) as { message?: string; error?: string };
-
-      if (!response.ok) {
-        throw new Error(data.error ?? "Something went wrong.");
-      }
-
-      setEmail("");
-      setCity("");
-      onSuccess(data.message ?? "You're on the waitlist.");
-    } catch (submitError) {
-      setError(
-        submitError instanceof Error ? submitError.message : "Could not join waitlist."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="message-fade-in flex justify-start">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
-        <div className="border-b border-white/[0.06] px-5 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
-              <Mail className="h-4 w-4 text-violet-300" />
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold tracking-tight text-white">
-                Join the waitlist
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Get early access when we launch
-              </p>
-            </div>
-          </div>
-        </div>
-        <form className="space-y-3 px-5 py-4" onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            disabled={disabled || isSubmitting}
-            required
-            className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
-          />
-          <input
-            type="text"
-            placeholder="City"
-            value={city}
-            onChange={(event) => setCity(event.target.value)}
-            disabled={disabled || isSubmitting}
-            required
-            className="flex h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
-          />
-          {error ? <p className="text-[13px] text-rose-400">{error}</p> : null}
-          <button
-            type="submit"
-            disabled={disabled || isSubmitting}
-            className="flex h-10 w-full items-center justify-center rounded-xl bg-violet-500 text-sm font-medium text-white transition-colors hover:bg-violet-400 disabled:pointer-events-none disabled:opacity-50"
-          >
-            {isSubmitting ? "Joining..." : "Join Waitlist"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-export function ChatDemo() {
-  const router = useRouter();
+export function ChatDemo({ variant = "authenticated" }: ChatDemoProps) {
+  const { data: session, status: sessionStatus } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [pendingAutoWaitlist, setPendingAutoWaitlist] = useState(false);
+  const [autoWaitlistBusy, setAutoWaitlistBusy] = useState(false);
+  const [autoWaitlistRetryVisible, setAutoWaitlistRetryVisible] = useState(false);
   const [chatKey, setChatKey] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const waitlistVisible = messages.some((message) => message.type === "waitlist");
+  const autoWaitlistInFlight = useRef(false);
+
+  const chatLocked =
+    waitlistSubmitted ||
+    autoWaitlistBusy ||
+    pendingAutoWaitlist ||
+    autoWaitlistRetryVisible;
 
   const startNewChat = useCallback(() => {
     window.localStorage.removeItem("concierge_session_id");
@@ -188,6 +103,10 @@ export function ChatDemo() {
     setIsTyping(true);
     setIsSending(false);
     setWaitlistSubmitted(false);
+    setPendingAutoWaitlist(false);
+    setAutoWaitlistBusy(false);
+    setAutoWaitlistRetryVisible(false);
+    autoWaitlistInFlight.current = false;
     setChatKey((k) => k + 1);
   }, []);
 
@@ -223,14 +142,19 @@ export function ChatDemo() {
           }))
         );
 
-        if (data.showWaitlist) {
+        if (data.showWaitlist && variant === "authenticated") {
+          setPendingAutoWaitlist(true);
+        }
+
+        if (data.showWaitlist && variant === "public") {
           setMessages((current) => [
             ...current,
             {
               id: createId(),
               role: "assistant",
-              content: "waitlist",
-              type: "waitlist",
+              content:
+                "Thanks for sharing your party details. Sign in with Google on the home page to save your spot on the waitlist.",
+              type: "text",
             },
           ]);
         }
@@ -307,7 +231,138 @@ export function ChatDemo() {
     return () => {
       cancelled = true;
     };
-  }, [chatKey]);
+  }, [chatKey, variant]);
+
+  useEffect(() => {
+    if (variant !== "authenticated" || !pendingAutoWaitlist || !sessionId) {
+      return;
+    }
+
+    if (sessionStatus === "loading") {
+      return;
+    }
+
+    if (sessionStatus === "unauthenticated") {
+      setPendingAutoWaitlist(false);
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: "assistant",
+          content:
+            "Your planning session is ready, but you need to be signed in to join the waitlist. Please refresh and sign in with Google.",
+          type: "text",
+        },
+      ]);
+      return;
+    }
+
+    const email = session?.user?.email?.trim();
+    if (!email) {
+      setPendingAutoWaitlist(false);
+      setMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: "assistant",
+          content:
+            "We couldn't read your Google email. Try signing out and back in, then start a new chat.",
+          type: "text",
+        },
+      ]);
+      return;
+    }
+
+    if (autoWaitlistInFlight.current) {
+      return;
+    }
+
+    let cancelled = false;
+    autoWaitlistInFlight.current = true;
+    setAutoWaitlistBusy(true);
+    setAutoWaitlistRetryVisible(false);
+
+    async function runAutoWaitlist() {
+      try {
+        const evResponse = await fetchWithTimeout(`/api/events/${sessionId}`);
+        const evData = (await evResponse.json()) as {
+          requirements?: { zip_code?: string };
+          error?: string;
+        };
+
+        if (!evResponse.ok) {
+          throw new Error(evData.error ?? "Could not load your party details.");
+        }
+
+        const zipRaw = evData.requirements?.zip_code?.trim() ?? "";
+        const city = zipRaw || "Location from chat";
+
+        const wlResponse = await fetchWithTimeout("/api/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            email,
+            city,
+          }),
+        });
+
+        const wlData = (await wlResponse.json()) as {
+          message?: string;
+          error?: string;
+        };
+
+        if (!wlResponse.ok) {
+          throw new Error(wlData.error ?? "Could not save your waitlist spot.");
+        }
+
+        if (cancelled) return;
+
+        const confirmation =
+          (wlData.message ?? "You're on the waitlist.") +
+          " Welcome to the waitlist — we'll reach out when it's your turn.";
+
+        setWaitlistSubmitted(true);
+        setMessages((current) => [
+          ...current,
+          {
+            id: createId(),
+            role: "assistant",
+            content: confirmation,
+            type: "text",
+          },
+        ]);
+      } catch (err) {
+        if (cancelled) return;
+        const text =
+          err instanceof Error
+            ? err.message
+            : "Something went wrong saving your waitlist spot.";
+        setMessages((current) => [
+          ...current,
+          {
+            id: createId(),
+            role: "assistant",
+            content: text,
+            type: "text",
+          },
+        ]);
+        setAutoWaitlistRetryVisible(true);
+      } finally {
+        if (!cancelled) {
+          setAutoWaitlistBusy(false);
+          setPendingAutoWaitlist(false);
+          autoWaitlistInFlight.current = false;
+        }
+      }
+    }
+
+    void runAutoWaitlist();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingAutoWaitlist, sessionId, session, sessionStatus, variant]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -319,20 +374,14 @@ export function ChatDemo() {
       top: container.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, autoWaitlistBusy]);
 
   async function handleSend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const trimmed = input.trim();
 
-    if (
-      !trimmed ||
-      !sessionId ||
-      isSending ||
-      isTyping ||
-      (waitlistVisible && !waitlistSubmitted)
-    ) {
+    if (!trimmed || !sessionId || isSending || isTyping || chatLocked) {
       return;
     }
 
@@ -386,17 +435,25 @@ export function ChatDemo() {
           type: "text",
         }));
 
-        if (data.showWaitlist && !waitlistSubmitted) {
-          additions.push({
-            id: createId(),
-            role: "assistant",
-            content: "waitlist",
-            type: "waitlist",
-          });
-        }
-
         return [...current, ...additions];
       });
+
+      if (data.showWaitlist && !waitlistSubmitted) {
+        if (variant === "authenticated") {
+          setPendingAutoWaitlist(true);
+        } else {
+          setMessages((current) => [
+            ...current,
+            {
+              id: createId(),
+              role: "assistant",
+              content:
+                "Thanks for sharing your party details. Sign in with Google on the home page to save your spot on the waitlist.",
+              type: "text",
+            },
+          ]);
+        }
+      }
     } catch (chatError) {
       setMessages((current) => [
         ...current,
@@ -416,26 +473,13 @@ export function ChatDemo() {
     }
   }
 
-  function handleWaitlistSuccess(message: string) {
-    setWaitlistSubmitted(true);
-    setMessages((current) => [
-      ...current.filter((item) => item.type !== "waitlist"),
-      {
-        id: createId(),
-        role: "assistant",
-        content: message,
-        type: "text",
-      },
-    ]);
-
-    window.setTimeout(() => {
-      router.push(sessionId ? `/bento-demo?session=${sessionId}` : "/bento-demo");
-    }, 900);
+  function handleRetryWaitlist() {
+    setAutoWaitlistRetryVisible(false);
+    setPendingAutoWaitlist(true);
   }
 
   return (
     <div className="w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm">
-      {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
@@ -443,7 +487,7 @@ export function ChatDemo() {
           </div>
           <div>
             <p className="text-[13px] font-semibold tracking-tight text-white sm:text-sm">
-              Party Planner
+              Bertram
             </p>
             <p className="hidden text-[11px] text-slate-500 sm:block">
               Tell us about the party you have in mind
@@ -455,7 +499,7 @@ export function ChatDemo() {
           <button
             type="button"
             onClick={startNewChat}
-            disabled={isTyping || isSending}
+            disabled={isTyping || isSending || autoWaitlistBusy}
             className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/[0.08] hover:text-white disabled:pointer-events-none disabled:opacity-40"
           >
             <RotateCcw className="h-3 w-3" />
@@ -468,24 +512,12 @@ export function ChatDemo() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="grid min-h-[50vh] grid-rows-[1fr_auto] sm:min-h-[58vh]">
         <div
           ref={scrollRef}
           className="space-y-3 overflow-y-auto px-4 py-4 sm:space-y-4 sm:px-5"
         >
           {messages.map((message) => {
-            if (message.type === "waitlist") {
-              return (
-                <WaitlistForm
-                  key={message.id}
-                  disabled={waitlistSubmitted}
-                  sessionId={sessionId}
-                  onSuccess={handleWaitlistSuccess}
-                />
-              );
-            }
-
             const isAssistant = message.role === "assistant";
 
             return (
@@ -510,17 +542,28 @@ export function ChatDemo() {
             );
           })}
 
-          {isTyping ? <TypingBubble /> : null}
+          {isTyping || autoWaitlistBusy ? <TypingBubble /> : null}
         </div>
 
-        {/* Input */}
+        {autoWaitlistRetryVisible ? (
+          <div className="border-t border-white/[0.06] px-4 py-2 sm:px-5">
+            <button
+              type="button"
+              onClick={handleRetryWaitlist}
+              className="w-full rounded-xl bg-violet-500/90 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+            >
+              Try saving your waitlist spot again
+            </button>
+          </div>
+        ) : null}
+
         <form
           onSubmit={handleSend}
           className="border-t border-white/[0.06] px-4 py-3 sm:px-5 sm:py-4"
         >
           <div className="flex items-center gap-2.5">
             <label htmlFor="chat-input" className="sr-only">
-              Reply to the AI planner
+              Reply to Bertram
             </label>
             <input
               id="chat-input"
@@ -529,10 +572,7 @@ export function ChatDemo() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               disabled={
-                !sessionId ||
-                isSending ||
-                isTyping ||
-                (waitlistVisible && !waitlistSubmitted)
+                !sessionId || isSending || isTyping || chatLocked || autoWaitlistRetryVisible
               }
               className="flex h-11 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-colors placeholder:text-slate-500 focus:border-violet-400/30 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50"
             />
@@ -543,7 +583,8 @@ export function ChatDemo() {
                 !sessionId ||
                 isSending ||
                 isTyping ||
-                (waitlistVisible && !waitlistSubmitted)
+                chatLocked ||
+                autoWaitlistRetryVisible
               }
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white transition-colors hover:bg-violet-400 disabled:pointer-events-none disabled:opacity-40"
             >

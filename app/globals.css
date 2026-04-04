@@ -219,3 +219,16 @@ body {
   z-index: 1;
 }
 
+/* Pipeline: Browserbase “working” dots */
+@keyframes browserbase-dot {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}

@@ -1,160 +1,271 @@
 from __future__ import annotations
 
-from datetime import date, time
+import uuid
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.agents.conversation_agent import (
+    FINAL_WAITLIST_MESSAGE,
     ConversationAgent,
     ConversationResult,
-    RequirementExtraction,
+    ConversationTurn,
 )
+from backend.database.connection import get_session
 from backend.main import app
 from backend.models.event_request import EventRequirements
-from backend.routers import chat as chat_router
+from backend.routers import whatsapp as whatsapp_router
+from backend.services import conversation_flow
+from backend.services.chat_sessions import ChatSession, ChatSessionStore, SessionMessage
 
 
 @pytest.mark.asyncio
-async def test_conversation_agent_extracts_out_of_order_fields(monkeypatch: pytest.MonkeyPatch) -> None:
-    agent = ConversationAgent()
-
-    async def fake_extract_update(
-        _messages: list[dict[str, str]],
-        _current_requirements: EventRequirements,
-    ) -> RequirementExtraction:
-        return RequirementExtraction(
-            child_name="Anant",
-            child_age=10,
-            venue_preferences="Local park picnic area",
-            budget_high=3000,
-            theme="Football",
-            food_preferences="Vegetarian Indian lunch",
-            snack_preferences="Chips and samosas",
-            decoration_preferences="Football balloon setup",
-            entertainment_preferences="Bounce house",
-        )
-
-    monkeypatch.setattr(agent, "_extract_update", fake_extract_update)
-
-    result = await agent.run(
-        [{"role": "user", "content": "Anant is turning 10 and the budget is about 3000 with a football theme."}],
-        EventRequirements(),
-    )
-
-    assert result.requirements.child_name == "Anant"
-    assert result.requirements.child_age == 10
-    assert result.requirements.venue_preferences == "Local park picnic area"
-    assert result.requirements.budget_high == 3000
-    assert result.requirements.theme == "Football"
-    assert result.requirements.food_preferences == "Vegetarian Indian lunch"
-    assert result.requirements.snack_preferences == "Chips and samosas"
-    assert result.requirements.decoration_preferences == "Football balloon setup"
-    assert result.requirements.entertainment_preferences == "Bounce house"
-    assert result.ready is False
-    assert result.messages == ["What date and time would you like the party to happen?"]
-    assert "budget" in result.collected_fields
-    assert "venue_preferences" in result.collected_fields
-    assert "food_preferences" in result.collected_fields
-    assert "entertainment_preferences" in result.collected_fields
-    assert "schedule" in result.missing_fields
-
-
-@pytest.mark.asyncio
-async def test_conversation_agent_only_marks_ready_when_all_required_fields_present(
+async def test_conversation_agent_appends_fixed_waitlist_message_when_ready(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     agent = ConversationAgent()
 
-    async def fake_extract_update(
+    async def fake_base_run(
+        self: ConversationAgent,
         _messages: list[dict[str, str]],
-        _current_requirements: EventRequirements,
-    ) -> RequirementExtraction:
-        return RequirementExtraction(
+    ) -> ConversationTurn:
+        return ConversationTurn(
+            reply="Anything else would go here",
+            ready=True,
             child_name="Anant",
             child_age=10,
-            event_date=date(2026, 6, 15),
-            event_time=time(11, 0),
-            guest_count=30,
-            zip_code="94539",
-            venue_preferences="Football picnic at a reserved park pavilion",
-            budget_low=2500,
-            budget_high=3000,
+            event_date="2026-07-21",
+            event_time="15:00:00",
+            guest_count=20,
+            zip_code="94025",
+            budget_high=1000,
             theme="Football",
-            food_preferences="Vegetarian Indian lunch buffet",
-            snack_preferences="Samosas, chips, and fruit cups",
-            decoration_preferences="Football themed balloons and table decor",
-            entertainment_preferences="Bounce house and football games",
-            dietary_restrictions=["none"],
-            notes="none",
         )
 
-    monkeypatch.setattr(agent, "_extract_update", fake_extract_update)
+    monkeypatch.setattr(
+        "backend.agents.conversation_agent.BaseAgent.run",
+        fake_base_run,
+    )
 
     result = await agent.run(
-        [{"role": "user", "content": "Here are all my party details."}],
+        [{"role": "user", "content": "Here are all the details."}],
         EventRequirements(),
     )
 
     assert result.ready is True
-    assert result.missing_fields == []
-    assert result.messages == ["Thanks! I have everything I need to start planning."]
+    assert result.messages == [
+        "Anything else would go here",
+        FINAL_WAITLIST_MESSAGE,
+    ]
 
 
 @pytest.mark.asyncio
-async def test_conversation_agent_keeps_waitlist_blocked_until_planning_categories_present(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agent = ConversationAgent()
+async def test_get_or_create_by_phone_returns_existing_session() -> None:
+    store = ChatSessionStore()
+    existing = ChatSession(session_id=str(uuid.uuid4()))
+    store.get_by_phone = AsyncMock(return_value=existing)  # type: ignore[method-assign]
+    store.create_for_phone = AsyncMock()  # type: ignore[method-assign]
 
-    async def fake_extract_update(
-        _messages: list[dict[str, str]],
-        _current_requirements: EventRequirements,
-    ) -> RequirementExtraction:
-        return RequirementExtraction(
-            child_name="Anant",
-            child_age=10,
-            event_date=date(2026, 6, 15),
-            event_time=time(11, 0),
-            guest_count=30,
-            zip_code="94539",
-            budget_low=2500,
-            budget_high=3000,
-            theme="Football",
-            dietary_restrictions=["none"],
-            notes="none",
-        )
+    session = await store.get_or_create_by_phone("whatsapp:+15551234567", AsyncMock())
 
-    monkeypatch.setattr(agent, "_extract_update", fake_extract_update)
+    assert session is existing
+    store.create_for_phone.assert_not_awaited()
 
-    result = await agent.run(
-        [{"role": "user", "content": "I gave the basic details but not the planning preferences yet."}],
-        EventRequirements(),
+
+@pytest.mark.asyncio
+async def test_get_or_create_by_phone_creates_session_when_missing() -> None:
+    store = ChatSessionStore()
+    created = ChatSession(session_id=str(uuid.uuid4()))
+    store.get_by_phone = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    store.create_for_phone = AsyncMock(return_value=created)  # type: ignore[method-assign]
+
+    session = await store.get_or_create_by_phone("whatsapp:+15551234567", AsyncMock())
+
+    assert session is created
+    store.create_for_phone.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_save_persists_twilio_sids() -> None:
+    store = ChatSessionStore()
+    event_id = uuid.uuid4()
+    event = SimpleNamespace(requirements={})
+
+    added_rows = []
+
+    class FakeDB:
+        async def get(self, _model: object, _event_id: object) -> object:
+            return event
+
+        def add(self, row: object) -> None:
+            added_rows.append(row)
+
+    db = FakeDB()
+
+    session = ChatSession(session_id=str(event_id))
+    session.append_messages(
+        [
+            SessionMessage(role="user", content="Hello", sid="SM-inbound"),
+            SessionMessage(role="assistant", content="Hi there!", sid="SM-outbound"),
+        ]
     )
 
-    assert result.ready is False
-    assert result.messages == [
-        "Do you already have a venue in mind, or should I plan for something like a park, indoor play place, backyard, or banquet space?"
-    ]
-    assert "venue_preferences" in result.missing_fields
-    assert "food_preferences" in result.missing_fields
-    assert "decoration_preferences" in result.missing_fields
-    assert "entertainment_preferences" in result.missing_fields
+    await store.save(session, db)  # type: ignore[arg-type]
+
+    assert event.requirements == session.requirements.model_dump(mode="json")
+    assert [row.direction for row in added_rows] == ["inbound", "outbound"]
+    assert [row.sid for row in added_rows] == ["SM-inbound", "SM-outbound"]
 
 
-def test_chat_route_bootstraps_backend_owned_session() -> None:
-    chat_router.session_store._sessions.clear()
+@pytest.mark.asyncio
+async def test_process_incoming_message_reuses_conversation_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = ChatSession(session_id=str(uuid.uuid4()))
+    save_mock = AsyncMock()
+    monkeypatch.setattr(conversation_flow.session_store, "save", save_mock)
+
+    expected_requirements = EventRequirements(child_name="Anant", theme="Football")
+    expected_result = ConversationResult(
+        ready=False,
+        messages=["What date were you thinking?"],
+        requirements=expected_requirements,
+        missing_fields=["event_date"],
+        collected_fields=["child_name", "theme"],
+    )
+
+    class FakeAgent:
+        def __init__(self) -> None:
+            self.calls: list[list[dict[str, str]]] = []
+
+        async def run(
+            self,
+            messages: list[dict[str, str]],
+            current_requirements: EventRequirements | None = None,
+        ) -> ConversationResult:
+            self.calls.append(messages)
+            assert current_requirements == session.requirements
+            return expected_result
+
+    fake_agent = FakeAgent()
+    monkeypatch.setattr(conversation_flow, "_agent", fake_agent)
+
+    result = await conversation_flow.process_incoming_message(
+        session,
+        SessionMessage(role="user", content="My son Anant wants a football party."),
+        AsyncMock(),
+    )
+
+    assert result == expected_result
+    assert session.requirements == expected_requirements
+    assert session.messages[-1].content == "My son Anant wants a football party."
+    save_mock.assert_awaited_once()
+    assert fake_agent.calls[0][-1]["content"] == "My son Anant wants a football party."
+
+
+def test_whatsapp_webhook_ignores_duplicate_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = object()
+
+    async def override_session():
+        yield db
+
+    app.dependency_overrides[get_session] = override_session
+    monkeypatch.setattr(
+        whatsapp_router.session_store,
+        "has_message_sid",
+        AsyncMock(return_value=True),
+    )
+    send_mock = AsyncMock()
+    monkeypatch.setattr(whatsapp_router.twilio_whatsapp, "send_message", send_mock)
 
     with TestClient(app) as client:
-      response = client.post("/api/chat", json={})
+        response = client.post(
+            "/webhooks/twilio/whatsapp",
+            data={
+                "From": "whatsapp:+15551234567",
+                "Body": "Hello",
+                "MessageSid": "SM-duplicate",
+            },
+        )
+
+    app.dependency_overrides.clear()
 
     assert response.status_code == 200
-    data = response.json()
+    assert response.headers["content-type"].startswith("application/xml")
+    send_mock.assert_not_awaited()
 
-    assert data["session_id"]
-    assert data["showWaitlist"] is False
-    assert data["messages"] == [
-        "Hi! I can help plan your child's birthday party.",
-        "What's your child's name and how old are they turning?",
-    ]
-    assert "child_profile" in data["progress"]["missing_fields"]
+
+def test_whatsapp_webhook_sends_agent_reply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = object()
+    session = ChatSession(session_id=str(uuid.uuid4()))
+
+    async def override_session():
+        yield db
+
+    app.dependency_overrides[get_session] = override_session
+    monkeypatch.setattr(
+        whatsapp_router.session_store,
+        "has_message_sid",
+        AsyncMock(return_value=False),
+    )
+    monkeypatch.setattr(
+        whatsapp_router.session_store,
+        "get_or_create_by_phone",
+        AsyncMock(return_value=session),
+    )
+
+    captured_user_messages: list[SessionMessage] = []
+
+    async def fake_process_incoming_message(
+        active_session: ChatSession,
+        user_message: SessionMessage,
+        _db: object,
+    ) -> ConversationResult:
+        assert active_session is session
+        captured_user_messages.append(user_message)
+        return ConversationResult(
+            ready=False,
+            messages=["Absolutely, let's start with the date."],
+            requirements=EventRequirements(child_name="Anant"),
+            missing_fields=["event_date"],
+            collected_fields=["child_name"],
+        )
+
+    monkeypatch.setattr(
+        whatsapp_router,
+        "process_incoming_message",
+        fake_process_incoming_message,
+    )
+
+    send_mock = AsyncMock(return_value="SM-outbound")
+    save_mock = AsyncMock()
+    monkeypatch.setattr(whatsapp_router.twilio_whatsapp, "send_message", send_mock)
+    monkeypatch.setattr(whatsapp_router.session_store, "save", save_mock)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/webhooks/twilio/whatsapp",
+            data={
+                "From": "+15551234567",
+                "Body": "I want to plan a party",
+                "MessageSid": "SM-inbound",
+            },
+        )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert captured_user_messages[0].sid == "SM-inbound"
+    assert captured_user_messages[0].content == "I want to plan a party"
+    send_mock.assert_awaited_once_with(
+        "whatsapp:+15551234567",
+        "Absolutely, let's start with the date.",
+    )
+    assert session.messages[-1].sid == "SM-outbound"
+    save_mock.assert_awaited_once()
