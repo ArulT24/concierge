@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RotateCcw, Send, Sparkles } from "lucide-react";
 import { useSession } from "next-auth/react";
 
-import { ARDEN_BLUE } from "@/components/arden/arden-chrome";
+import { DOUBTFIRE_BLUE } from "@/components/doubtfire/doubtfire-chrome";
 import { cn } from "@/lib/utils";
 
 type ChatRole = "assistant" | "user";
@@ -42,7 +42,7 @@ function apiFlowForSurface(surface: "waitlist" | "kids_party"): ChatFlow {
   return surface === "kids_party" ? "party_intake" : "waitlist_survey";
 }
 
-/** Match `arden-landing` iMessage-style pacing between assistant bubbles. */
+/** Match `doubtfire-landing` iMessage-style pacing between assistant bubbles. */
 const ASSISTANT_BATCH_TYPING_MS = 480;
 const ASSISTANT_BATCH_PAUSE_MS = 420;
 
@@ -59,8 +59,11 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function shouldStaggerAssistantBatch(isArden: boolean, lineCount: number): boolean {
-  return isArden && lineCount > 1 && !prefersReducedMotion();
+function shouldStaggerAssistantBatch(
+  isDoubtfire: boolean,
+  lineCount: number
+): boolean {
+  return isDoubtfire && lineCount > 1 && !prefersReducedMotion();
 }
 
 function createId() {
@@ -121,31 +124,31 @@ async function fetchWithTimeout(
   }
 }
 
-function TypingBubble({ arden }: { arden?: boolean }) {
+function TypingBubble({ doubtfire }: { doubtfire?: boolean }) {
   const dots = (
     <div className="flex items-center gap-1.5 px-0.5 py-0.5" aria-hidden>
       <span
         className={cn(
           "typing-dot inline-block rounded-full",
-          arden ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
+          doubtfire ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
         )}
       />
       <span
         className={cn(
           "typing-dot inline-block rounded-full",
-          arden ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
+          doubtfire ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
         )}
       />
       <span
         className={cn(
           "typing-dot inline-block rounded-full",
-          arden ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
+          doubtfire ? "size-2 bg-neutral-400" : "h-1.5 w-1.5 bg-slate-400"
         )}
       />
     </div>
   );
 
-  if (arden) {
+  if (doubtfire) {
     return (
       <div className="message-fade-in relative z-[2] flex justify-start">
         <div
@@ -166,7 +169,7 @@ function TypingBubble({ arden }: { arden?: boolean }) {
   );
 }
 
-export type ChatDemoTheme = "violet" | "arden";
+export type ChatDemoTheme = "violet" | "doubtfire";
 
 type ChatDemoProps = {
   variant?: ChatDemoVariant;
@@ -180,7 +183,7 @@ export function ChatDemo({
   theme = "violet",
   surface = "waitlist",
 }: ChatDemoProps) {
-  const isArden = theme === "arden";
+  const isDoubtfire = theme === "doubtfire";
   const { data: session, status: sessionStatus } = useSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -193,7 +196,7 @@ export function ChatDemo({
   const [autoWaitlistRetryVisible, setAutoWaitlistRetryVisible] = useState(false);
   const [chatFlow, setChatFlow] = useState<ChatFlow | null>(null);
   const [chatKey, setChatKey] = useState(0);
-  /** Multi-bubble assistant lines; shown one-by-one (Arden, iMessage-style). */
+  /** Multi-bubble assistant lines; shown one-by-one (Doubtfire, iMessage-style). */
   const [pendingAssistantReveal, setPendingAssistantReveal] =
     useState<PendingAssistantReveal | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -257,7 +260,7 @@ export function ChatDemo({
       setIsTyping(false);
     };
 
-    if (!shouldStaggerAssistantBatch(isArden, lines.length)) {
+    if (!shouldStaggerAssistantBatch(isDoubtfire, lines.length)) {
       flushAll();
       return;
     }
@@ -318,7 +321,7 @@ export function ChatDemo({
       cancelled = true;
       timeouts.forEach((id) => window.clearTimeout(id));
     };
-  }, [pendingAssistantReveal, isArden]);
+  }, [pendingAssistantReveal, isDoubtfire]);
 
   useEffect(() => {
     let cancelled = false;
@@ -364,9 +367,9 @@ export function ChatDemo({
         const { prefix, rest } = takeLeadingAssistantPrefix(data.messages);
         const resumeWaitlistStagger =
           flow === "waitlist_survey" &&
-          isArden &&
+          isDoubtfire &&
           surface === "waitlist" &&
-          shouldStaggerAssistantBatch(isArden, prefix.length);
+          shouldStaggerAssistantBatch(isDoubtfire, prefix.length);
 
         let resumeTail = rest;
         if (data.showWaitlist && variant === "public") {
@@ -468,7 +471,7 @@ export function ChatDemo({
 
       const msgs = data.messages ?? [];
       const useStaggeredOpeners =
-        msgs.length > 1 && shouldStaggerAssistantBatch(isArden, msgs.length);
+        msgs.length > 1 && shouldStaggerAssistantBatch(isDoubtfire, msgs.length);
 
       if (useStaggeredOpeners) {
         setMessages([]);
@@ -806,7 +809,7 @@ export function ChatDemo({
       const assistantLines = data.messages ?? [];
       queueStaggeredReply =
         assistantLines.length > 1 &&
-        shouldStaggerAssistantBatch(isArden, assistantLines.length);
+        shouldStaggerAssistantBatch(isDoubtfire, assistantLines.length);
 
       if (queueStaggeredReply) {
         setPendingAssistantReveal({
@@ -882,12 +885,12 @@ export function ChatDemo({
     <div
       className={cn(
         "w-full",
-        isArden
+        isDoubtfire
           ? "flex h-full min-h-0 flex-col"
           : "overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm"
       )}
     >
-      {!isArden ? (
+      {!isDoubtfire ? (
         <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3 sm:px-5">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 ring-1 ring-violet-400/20">
@@ -921,7 +924,7 @@ export function ChatDemo({
         </div>
       ) : null}
 
-      {isArden ? (
+      {isDoubtfire ? (
         <>
           <div
             ref={scrollRef}
@@ -960,7 +963,7 @@ export function ChatDemo({
                             : "rounded-[20px] rounded-br-md text-[15px] leading-snug text-white shadow-[0_2px_14px_-6px_rgba(0,0,0,0.35)]"
                         )}
                         style={
-                          !isAssistant ? { backgroundColor: ARDEN_BLUE } : undefined
+                          !isAssistant ? { backgroundColor: DOUBTFIRE_BLUE } : undefined
                         }
                       >
                         <p className="whitespace-pre-wrap">{message.content}</p>
@@ -970,7 +973,7 @@ export function ChatDemo({
                 })}
 
                 {isTyping || autoWaitlistBusy ? (
-                  <TypingBubble arden={true} />
+                  <TypingBubble doubtfire={true} />
                 ) : null}
               </div>
             </div>
@@ -983,7 +986,7 @@ export function ChatDemo({
                 onClick={handleRetryWaitlist}
                 className="w-full rounded-full py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-105"
                 style={{
-                  backgroundColor: ARDEN_BLUE,
+                  backgroundColor: DOUBTFIRE_BLUE,
                   boxShadow: "0 8px 28px -8px rgba(27,111,245,0.45)",
                 }}
               >
@@ -1026,7 +1029,7 @@ export function ChatDemo({
                   autoWaitlistRetryVisible
                 }
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-[0_4px_16px_-4px_rgba(27,111,245,0.45)] transition-[filter] hover:brightness-105 active:brightness-95 disabled:pointer-events-none disabled:opacity-40 sm:h-11 sm:w-11"
-                style={{ backgroundColor: ARDEN_BLUE }}
+                style={{ backgroundColor: DOUBTFIRE_BLUE }}
                 aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
@@ -1066,7 +1069,7 @@ export function ChatDemo({
             })}
 
             {isTyping || autoWaitlistBusy ? (
-              <TypingBubble arden={false} />
+              <TypingBubble doubtfire={false} />
             ) : null}
           </div>
 

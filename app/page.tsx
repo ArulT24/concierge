@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
-import { ArdenLanding } from "@/components/arden/arden-landing";
+import { DoubtfireLanding } from "@/components/doubtfire/doubtfire-landing";
 
 export const metadata: Metadata = {
   title: "bertram — planning demo",
   description:
-    "Chat demo for parties, holidays, travel, and itineraries — waitlist and layout inspired by arden.co.",
+    "Chat demo for parties, holidays, travel, and itineraries — Doubtfire-style marketing layout.",
 };
 
 export default function Home() {
-  return <ArdenLanding />;
+  return <DoubtfireLanding />;
 }

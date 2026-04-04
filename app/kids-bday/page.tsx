@@ -1,5 +1,5 @@
-import { ArdenChatPage } from "@/components/arden/arden-chat-page";
+import { DoubtfireChatPage } from "@/components/doubtfire/doubtfire-chat-page";
 
 export default function KidsBdayChatPage() {
-  return <ArdenChatPage surface="kids_party" />;
+  return <DoubtfireChatPage surface="kids_party" />;
 }

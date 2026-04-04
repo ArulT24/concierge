@@ -11,11 +11,11 @@ import { Cake, PartyPopper } from "lucide-react";
 import { signIn } from "next-auth/react";
 
 import {
-  ARDEN_BLUE as BLUE,
-  ARDEN_SOFT_SHADOW as SOFT_SHADOW,
-  ArdenSiteHeader,
+  DOUBTFIRE_BLUE as BLUE,
+  DOUBTFIRE_SOFT_SHADOW as SOFT_SHADOW,
+  DoubtfireSiteHeader,
   BertramStaticBg,
-} from "./arden-chrome";
+} from "./doubtfire-chrome";
 
 /** iMessage-style: typing dots, then ~half second pause before the next typing. */
 const TYPING_DURATION_MS = 480;
@@ -563,7 +563,7 @@ function renderScene4Item(item: Scene4Item, i: number) {
   );
 }
 
-export function ArdenLanding() {
+export function DoubtfireLanding() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const s1 = useRef<HTMLElement>(null);
   const s2 = useRef<HTMLElement>(null);
@@ -579,7 +579,7 @@ export function ArdenLanding() {
     <div
       className="fixed inset-0 overflow-y-auto overscroll-y-contain"
       ref={scrollRef}
-      data-arden-scroll-root
+      data-doubtfire-scroll-root
       style={{
         scrollSnapType: "y mandatory",
         WebkitOverflowScrolling: "touch",
@@ -588,7 +588,7 @@ export function ArdenLanding() {
     >
       <BertramStaticBg />
       <div className="relative z-10 isolate">
-        <ArdenSiteHeader />
+        <DoubtfireSiteHeader />
 
       <SceneBlock sectionRef={s1}>
         {SCENE1.slice(0, s1State.revealed).map((item, i) => renderScene1Item(item, i))}

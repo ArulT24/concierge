@@ -2,11 +2,11 @@
 
 import { useId } from "react";
 
-/** Shared Arden marketing surface: background, header, tokens. */
+/** Shared Doubtfire marketing surface: background, header, tokens. */
 
-export const ARDEN_BLUE = "#1B6FF5";
+export const DOUBTFIRE_BLUE = "#1B6FF5";
 
-export const ARDEN_SOFT_SHADOW =
+export const DOUBTFIRE_SOFT_SHADOW =
   "shadow-[0_10px_40px_-12px_rgba(15,23,42,0.18),0_2px_8px_-4px_rgba(15,23,42,0.08)]";
 
 /** Black + white fractal noise (TV static); stays under UI; unique filter id per mount. */
@@ -59,7 +59,7 @@ export function BertramStaticBg() {
   );
 }
 
-export function ArdenSiteHeader() {
+export function DoubtfireSiteHeader() {
   return (
     <header className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-5 sm:px-8 sm:pt-6">
       <div
