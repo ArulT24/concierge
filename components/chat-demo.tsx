@@ -205,12 +205,14 @@ export function ChatDemo({
   const assistantRevealRunIdRef = useRef(0);
 
   const isWaitlistSurvey = chatFlow === "waitlist_survey";
+  const [waitlistSurveyLocked, setWaitlistSurveyLocked] = useState(false);
   const chatLocked =
-    !isWaitlistSurvey &&
-    (waitlistSubmitted ||
-      autoWaitlistBusy ||
-      pendingAutoWaitlist ||
-      autoWaitlistRetryVisible);
+    waitlistSurveyLocked ||
+    (!isWaitlistSurvey &&
+      (waitlistSubmitted ||
+        autoWaitlistBusy ||
+        pendingAutoWaitlist ||
+        autoWaitlistRetryVisible));
 
   const startNewChat = useCallback(() => {
     window.localStorage.removeItem(sessionStorageKey(surface));
@@ -227,6 +229,7 @@ export function ChatDemo({
     autoWaitlistInFlight.current = false;
     surveyEmailRegisteredRef.current = false;
     setPendingAssistantReveal(null);
+    setWaitlistSurveyLocked(false);
     setChatKey((k) => k + 1);
   }, [surface]);
 
@@ -352,6 +355,7 @@ export function ChatDemo({
           messages?: Array<{ role: string; content: string }>;
           showWaitlist?: boolean;
           chat_flow?: ChatFlow;
+          waitlist_survey_locked?: boolean;
         };
 
         if (cancelled || !data.messages?.length) return false;
@@ -361,6 +365,7 @@ export function ChatDemo({
             ? "waitlist_survey"
             : "party_intake";
         setChatFlow(flow);
+        setWaitlistSurveyLocked(Boolean(data.waitlist_survey_locked));
 
         setSessionId(data.session_id ?? savedId);
 
@@ -442,6 +447,7 @@ export function ChatDemo({
         messages?: string[];
         error?: string;
         chat_flow?: ChatFlow;
+        waitlist_survey_locked?: boolean;
       };
 
       if (!response.ok) {
@@ -455,6 +461,7 @@ export function ChatDemo({
           ? "waitlist_survey"
           : "party_intake";
       setChatFlow(flow);
+      setWaitlistSurveyLocked(Boolean(data.waitlist_survey_locked));
 
       const newId = data.session_id ?? null;
       setSessionId(newId);
@@ -789,6 +796,7 @@ export function ChatDemo({
         showWaitlist?: boolean;
         chat_flow?: ChatFlow;
         error?: string;
+        waitlist_survey_locked?: boolean;
       };
 
       if (!response.ok) {
@@ -805,6 +813,7 @@ export function ChatDemo({
       const nextFlow: ChatFlow =
         data.chat_flow === "waitlist_survey" ? "waitlist_survey" : "party_intake";
       setChatFlow(nextFlow);
+      setWaitlistSurveyLocked(Boolean(data.waitlist_survey_locked));
 
       const assistantLines = data.messages ?? [];
       queueStaggeredReply =
@@ -1036,6 +1045,12 @@ export function ChatDemo({
               </button>
             </div>
           </form>
+          {waitlistSurveyLocked && isWaitlistSurvey ? (
+            <p className="relative z-[2] px-2 pb-1 text-center text-[11px] text-neutral-500">
+              You&apos;re on the waitlist. Use{" "}
+              <span className="font-medium text-neutral-600">New chat</span> to start over.
+            </p>
+          ) : null}
         </>
       ) : (
         <div className="grid min-h-[50vh] grid-rows-[1fr_auto] sm:min-h-[58vh]">

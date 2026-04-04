@@ -122,6 +122,20 @@ async def process_waitlist_survey_message(
     user_messages = [m for m in session.messages if m.role == "user"]
     last_user = user_messages[-1].content if user_messages else ""
 
+    # One survey reply only (warm ack + waitlist copy). Ignore further user turns.
+    if len(user_messages) > 1:
+        logger.info(
+            "waitlist survey: follow-up message ignored",
+            session_id=session.session_id,
+        )
+        return ConversationResult(
+            ready=False,
+            messages=[],
+            requirements=session.requirements,
+            missing_fields=[],
+            collected_fields=[],
+        )
+
     event_id_u = uuid.UUID(session.session_id)
     event = await db.get(EventRow, event_id_u)
     if event is None:

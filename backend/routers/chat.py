@@ -37,6 +37,8 @@ class ChatResponse(BaseModel):
     progress: ChatProgress
     plan_summary: str | None = None
     chat_flow: ChatFlow = "party_intake"
+    # True after the user's first message in `/chat` waitlist survey (no more assistant turns).
+    waitlist_survey_locked: bool = False
 
 
 class SessionHistoryMessage(BaseModel):
@@ -50,6 +52,7 @@ class SessionResumeResponse(BaseModel):
     showWaitlist: bool
     progress: ChatProgress
     chat_flow: ChatFlow = "party_intake"
+    waitlist_survey_locked: bool = False
 
 
 def _verify_internal_chat_secret(request: Request) -> None:
@@ -68,6 +71,12 @@ def _header_email(request: Request) -> str | None:
 
 def _chat_flow_for_session_event_type(event_type: str) -> ChatFlow:
     return "waitlist_survey" if event_type == "waitlist_survey" else "party_intake"
+
+
+def _waitlist_survey_locked(session: ChatSession) -> bool:
+    if session.event_type != "waitlist_survey":
+        return False
+    return sum(1 for m in session.messages if m.role == "user") >= 1
 
 
 @router.get("/api/chat/{session_id}", response_model=SessionResumeResponse)
@@ -96,6 +105,7 @@ async def resume_session(
                 completion_ratio=0.0,
             ),
             chat_flow=flow,
+            waitlist_survey_locked=_waitlist_survey_locked(session),
         )
 
     from backend.agents.conversation_agent import ConversationAgent
@@ -114,6 +124,7 @@ async def resume_session(
         showWaitlist=ready,
         progress=build_progress(collected, missing),
         chat_flow=flow,
+        waitlist_survey_locked=False,
     )
 
 
@@ -204,6 +215,7 @@ async def chat(
                 showWaitlist=False,
                 progress=progress,
                 chat_flow="waitlist_survey",
+                waitlist_survey_locked=False,
             )
 
         if request.flow == "party_intake":
@@ -228,6 +240,7 @@ async def chat(
                 showWaitlist=False,
                 progress=progress,
                 chat_flow="party_intake",
+                waitlist_survey_locked=False,
             )
 
         raise HTTPException(
@@ -284,4 +297,5 @@ async def chat(
         ),
         plan_summary=plan_summary,
         chat_flow=flow,
+        waitlist_survey_locked=_waitlist_survey_locked(session),
     )
