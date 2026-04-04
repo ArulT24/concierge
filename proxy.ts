@@ -1,6 +1,20 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { auth } from "@/auth";
+
+const chatAuth = auth((req) => {
+  if (!req.auth) {
+    const signIn = new URL("/api/auth/signin", req.nextUrl.origin);
+    signIn.searchParams.set(
+      "callbackUrl",
+      `${req.nextUrl.pathname}${req.nextUrl.search}`
+    );
+    return NextResponse.redirect(signIn);
+  }
+  return NextResponse.next();
+});
+
 /**
  * On Vercel, only the marketing landing and its waitlist proxy are exposed.
  * Set LANDING_ONLY=0 in the Vercel project env to serve the full Next app.
@@ -25,11 +39,15 @@ function isAllowedPath(pathname: string): boolean {
 }
 
 export function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  if (pathname === "/chat" || pathname.startsWith("/chat/")) {
+    return chatAuth(request);
+  }
+
   if (!landingOnlyEnabled()) {
     return NextResponse.next();
   }
-
-  const pathname = request.nextUrl.pathname;
 
   if (isAllowedPath(pathname)) {
     return NextResponse.next();
