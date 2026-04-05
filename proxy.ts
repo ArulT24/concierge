@@ -16,12 +16,10 @@ const chatAuth = auth((req) => {
 }) as unknown as NextMiddleware;
 
 /**
- * Marketing-only mode: only `/`, `/api/auth/*`, static assets, and `/chat`/`/kids-bday`
- * (with auth) are reachable; everything else returns 404.
- *
- * Opt-in with LANDING_ONLY=1 (e.g. a bare landing deploy). Default is full app — we do
- * not infer this from VERCEL=1, or every Vercel deploy would 404 `/api/chat` unless env
- * was set exactly right.
+ * Marketing-only mode (opt-in via LANDING_ONLY=1): shrink surface area for a bare landing.
+ * `/chat` and `/kids-bday` still go through Auth; Next.js BFF routes that proxy to FastAPI
+ * are always allowlisted so `/api/chat` is never 404'd from the Edge layer (Vercel runs
+ * this file on Edge — a 404 here never hits `app/api/chat/route.ts`).
  */
 function landingOnlyEnabled(): boolean {
   const v = (process.env.LANDING_ONLY ?? "").trim().toLowerCase();
@@ -37,6 +35,9 @@ function isPublicFile(pathname: string): boolean {
 function isAllowedPath(pathname: string): boolean {
   if (pathname === "/" || pathname === "") return true;
   if (pathname.startsWith("/api/auth")) return true;
+  if (pathname.startsWith("/api/chat")) return true;
+  if (pathname.startsWith("/api/waitlist")) return true;
+  if (pathname.startsWith("/api/events")) return true;
   if (isPublicFile(pathname)) return true;
   return false;
 }
