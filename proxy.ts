@@ -16,12 +16,16 @@ const chatAuth = auth((req) => {
 }) as unknown as NextMiddleware;
 
 /**
- * On Vercel, only the marketing home (and auth for Google sign-in) are exposed.
- * Set LANDING_ONLY=0 in the Vercel project env to serve the full Next app.
+ * Marketing-only mode: only `/`, `/api/auth/*`, static assets, and `/chat`/`/kids-bday`
+ * (with auth) are reachable; everything else returns 404.
+ *
+ * Opt-in with LANDING_ONLY=1 (e.g. a bare landing deploy). Default is full app — we do
+ * not infer this from VERCEL=1, or every Vercel deploy would 404 `/api/chat` unless env
+ * was set exactly right.
  */
 function landingOnlyEnabled(): boolean {
-  if (process.env.LANDING_ONLY === "0") return false;
-  return process.env.LANDING_ONLY === "1" || process.env.VERCEL === "1";
+  const v = (process.env.LANDING_ONLY ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
 }
 
 function isPublicFile(pathname: string): boolean {

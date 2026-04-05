@@ -16,7 +16,7 @@ The frontend in this repo is a small Next.js app focused on the **marketing land
 - **Backend-only:** `POST /api/landing-waitlist` on FastAPI still accepts email-only signups for alternate landings or scripts. The default Next landing uses Google sign-in instead, and the old Next proxy for `landing-waitlist` was removed.
 - **Run locally:** `npm install` then `npm run dev` (default [http://localhost:3000](http://localhost:3000)), with the backend on port 8000 and `BACKEND_URL` set accordingly (see `.env.example`).
 
-`proxy.ts` implements a **landing-only** mode used on Vercel by default (`VERCEL=1` enables it unless `LANDING_ONLY=0`). In that mode, only `/`, `/chat`, `/kids-bday` (with Auth.js), static assets, and `/api/auth/*` pass through; other routes—including `/api/chat` and `/api/waitlist`—return 404. **Set `LANDING_ONLY=0` in the Vercel env** when you deploy the full app so the Next API proxies can reach the backend.
+`proxy.ts` can enable **landing-only** mode when **`LANDING_ONLY=1`** (opt-in). In that mode, only `/`, `/chat`, `/kids-bday` (with Auth.js), static assets, and `/api/auth/*` pass through; other routes—including `/api/chat` and `/api/waitlist`—return 404. By default the full Next app is served (no env var needed on Vercel).
 
 Operational UIs for the vendor **search / pipeline** used to live under Next.js (`/pipeline`, `/search-dashboard`, etc.); those pages were removed. Pipeline and search HTTP APIs remain on **FastAPI** for workers, scripts, and direct calls (see **Vendor pipeline** below).
 
