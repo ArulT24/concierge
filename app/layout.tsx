@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 
 import { AppSessionProvider } from "@/components/session-provider";
@@ -12,6 +12,12 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Bertram — Coming soon",
   description: "Plan your event with Bertram and join the waitlist.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({

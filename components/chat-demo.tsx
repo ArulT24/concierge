@@ -1045,12 +1045,6 @@ export function ChatDemo({
               </button>
             </div>
           </form>
-          {waitlistSurveyLocked && isWaitlistSurvey ? (
-            <p className="relative z-[2] px-2 pb-1 text-center text-[11px] text-neutral-500">
-              You&apos;re on the waitlist. Use{" "}
-              <span className="font-medium text-neutral-600">New chat</span> to start over.
-            </p>
-          ) : null}
         </>
       ) : (
         <div className="grid min-h-[50vh] grid-rows-[1fr_auto] sm:min-h-[58vh]">

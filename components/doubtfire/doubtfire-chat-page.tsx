@@ -13,7 +13,7 @@ export function DoubtfireChatPage({
 }) {
   return (
     <div
-      className="fixed inset-0 flex flex-col overflow-hidden"
+      className="fixed inset-0 flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col overflow-hidden"
       style={{
         WebkitOverflowScrolling: "touch",
         backgroundColor: "#000000",
