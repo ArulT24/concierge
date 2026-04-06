@@ -10,6 +10,7 @@ from backend.agents.waitlist_survey_agent import WaitlistSurveyAgent
 from backend.config import get_settings
 from backend.logging_config import get_logger
 from backend.models.db import EventRow
+from backend.routers.landing_waitlist import upsert_landing_waitlist
 from backend.services.chat_sessions import (
     ChatProgress,
     ChatSession,
@@ -174,6 +175,13 @@ async def process_waitlist_survey_message(
 
     event.planning_interest_category = category
     await db.flush()
+
+    if event.email:
+        await upsert_landing_waitlist(
+            email=event.email,
+            db=db,
+            planning_interest=last_user or None,
+        )
 
     logger.info(
         "waitlist survey turn",

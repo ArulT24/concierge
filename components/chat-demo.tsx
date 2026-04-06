@@ -697,14 +697,10 @@ export function ChatDemo({
 
     async function registerSurveyEmail() {
       try {
-        const wlResponse = await fetchWithTimeout("/api/waitlist", {
+        const wlResponse = await fetchWithTimeout("/api/landing-waitlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            session_id: sessionId,
-            email,
-            city: "Waitlist survey",
-          }),
+          body: JSON.stringify({ email }),
         });
 
         const wlData = (await wlResponse.json()) as {

@@ -37,6 +37,7 @@ function isAllowedPath(pathname: string): boolean {
   if (pathname.startsWith("/api/auth")) return true;
   if (pathname.startsWith("/api/chat")) return true;
   if (pathname.startsWith("/api/waitlist")) return true;
+  if (pathname.startsWith("/api/landing-waitlist")) return true;
   if (pathname.startsWith("/api/events")) return true;
   if (isPublicFile(pathname)) return true;
   return false;
