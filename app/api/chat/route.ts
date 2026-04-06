@@ -30,8 +30,17 @@ export async function POST(request: Request) {
     }
 
     if (!response.ok) {
-      const errorMessage =
+      let errorMessage =
         data?.detail ?? data?.error ?? (raw.trim() || "Backend request failed.");
+      // FastAPI's default 404 is {"detail":"Not Found"} — usually wrong BACKEND_URL
+      // (different service, typo, or missing /api on the wrong host).
+      if (
+        response.status === 404 &&
+        (errorMessage === "Not Found" || errorMessage === "not found")
+      ) {
+        errorMessage =
+          "Planning API returned 404 for POST /api/chat. On Vercel, set BACKEND_URL to your FastAPI root (e.g. https://<service>.up.railway.app) with no path suffix.";
+      }
 
       return NextResponse.json(
         { error: errorMessage },
