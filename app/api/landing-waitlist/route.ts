@@ -19,6 +19,8 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       email?: string;
       planning_interest?: string;
+      event_category?: string;
+      intake_answers?: Record<string, string>;
     };
 
     const email = typeof body.email === "string" ? body.email.trim() : "";
@@ -32,7 +34,12 @@ export async function POST(request: Request) {
     const response = await fetch(`${BACKEND_URL}/api/landing-waitlist`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, planning_interest: body.planning_interest ?? null }),
+      body: JSON.stringify({
+        email,
+        planning_interest: body.planning_interest ?? null,
+        event_category: body.event_category ?? null,
+        intake_answers: body.intake_answers ?? null,
+      }),
     });
 
     const data = await response.json();

@@ -19,6 +19,8 @@ SUCCESS_BODY = {"message": "You're on the list."}
 class LandingWaitlistSignupRequest(BaseModel):
     email: EmailStr
     planning_interest: str | None = None
+    event_category: str | None = None
+    intake_answers: dict | None = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -40,6 +42,8 @@ async def upsert_landing_waitlist(
     email: str,
     db: AsyncSession,
     planning_interest: str | None = None,
+    event_category: str | None = None,
+    intake_answers: dict | None = None,
 ) -> None:
     """Insert or update a landing_waitlist row. Safe to call multiple times."""
     email = _normalize_email(email)
@@ -54,10 +58,18 @@ async def upsert_landing_waitlist(
     if existing is not None:
         if planning_interest:
             existing.planning_interest = planning_interest.strip()
+        if event_category:
+            existing.event_category = event_category.strip()
+        if intake_answers:
+            existing.intake_answers = intake_answers
         logger.info("landing_waitlist updated", email=email)
     else:
-        interest = planning_interest.strip() if planning_interest else None
-        db.add(LandingWaitlistRow(email=email, planning_interest=interest))
+        db.add(LandingWaitlistRow(
+            email=email,
+            planning_interest=planning_interest.strip() if planning_interest else None,
+            event_category=event_category.strip() if event_category else None,
+            intake_answers=intake_answers,
+        ))
         logger.info("landing_waitlist signup", email=email)
 
     await db.flush()
@@ -79,5 +91,7 @@ async def signup_landing_waitlist(
         email=email,
         db=db,
         planning_interest=body.planning_interest,
+        event_category=body.event_category,
+        intake_answers=body.intake_answers,
     )
     return LandingWaitlistSignupResponse(message=SUCCESS_BODY["message"])

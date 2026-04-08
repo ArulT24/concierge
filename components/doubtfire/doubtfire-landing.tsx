@@ -314,10 +314,10 @@ function WaitlistPitchCard() {
             boxShadow: "0 8px 28px -8px rgba(27,111,245,0.55)",
           }}
           onClick={() => {
-            void signIn("google", { callbackUrl: "/chat" });
+            void signIn("google", { callbackUrl: "/welcome" });
           }}
         >
-          Sign Up Today
+          Join Waitlist
         </button>
       </div>
     </div>
@@ -467,8 +467,8 @@ function SceneBlock({
         </div>
       </div>
       {showScrollHint ? (
-        <p className="pointer-events-none absolute bottom-4 left-0 right-0 text-center text-xs font-bold text-neutral-900">
-          Swipe or scroll for more
+        <p className="pointer-events-none absolute bottom-4 left-0 right-0 text-center text-xs font-bold text-white">
+          Scroll down for more
         </p>
       ) : null}
     </section>
