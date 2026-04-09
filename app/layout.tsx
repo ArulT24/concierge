@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Bertram — Coming soon",
+  title: "bertram",
   description: "Plan your event with Bertram and join the waitlist.",
 };
 

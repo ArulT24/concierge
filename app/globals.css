@@ -26,7 +26,7 @@
 }
 
 :root {
-  --background: #08111f;
+  --background: #000000;
   --foreground: #eff6ff;
   --card: rgba(10, 18, 32, 0.78);
   --card-foreground: #f8fbff;
@@ -56,9 +56,6 @@ html {
 
 body {
   @apply min-h-screen bg-background text-foreground antialiased;
-  background-image:
-    radial-gradient(circle at top, rgba(124, 58, 237, 0.28), transparent 34%),
-    radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.16), transparent 22%);
 }
 
 .message-fade-in {

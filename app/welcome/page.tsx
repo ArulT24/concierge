@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { DoubtfireWelcome } from "@/components/doubtfire/doubtfire-welcome";
 
 export const metadata: Metadata = {
-  title: "bertram — join the waitlist",
+  title: "bertram",
   description: "Tell us what you're planning and we'll reach out when Bertram is ready for you.",
 };
 

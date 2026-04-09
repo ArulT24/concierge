@@ -35,7 +35,7 @@ export function BertramStaticBg() {
           >
             <feTurbulence
               type="fractalNoise"
-              baseFrequency="1.05"
+              baseFrequency="0.85"
               numOctaves="4"
               seed="47"
               stitchTiles="stitch"
@@ -43,9 +43,9 @@ export function BertramStaticBg() {
             />
             <feColorMatrix in="noise" type="luminanceToAlpha" result="mask" />
             <feComponentTransfer in="mask" result="maskA">
-              <feFuncA type="linear" slope="3.8" intercept="-1" />
+              <feFuncA type="linear" slope="4.5" intercept="-1.2" />
             </feComponentTransfer>
-            <feFlood floodColor="#ffffff" floodOpacity="1" result="flood" />
+            <feFlood floodColor="#ffffff" floodOpacity="0.28" result="flood" />
             <feComposite in="flood" in2="maskA" operator="in" result="speckle" />
             <feMerge>
               <feMergeNode in="SourceGraphic" />
@@ -79,11 +79,11 @@ export function DoubtfireSiteHeader() {
             y="24.5"
             textAnchor="middle"
             fill="#0a0a0a"
-            fontSize="15"
+            fontSize="14"
             fontWeight="700"
             fontFamily="ui-sans-serif, system-ui, sans-serif"
           >
-            8
+            B
           </text>
         </svg>
         <span className="text-[17px] font-bold tracking-tight text-neutral-900 lowercase">
