@@ -7,7 +7,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Cake, PartyPopper } from "lucide-react";
+import { Cake, GraduationCap, PartyPopper } from "lucide-react";
 import { signIn } from "next-auth/react";
 
 import {
@@ -184,6 +184,11 @@ function typingAlignScene4(item: Scene4Item): "left" | "right" {
   return item.kind === "user" ? "right" : "left";
 }
 
+function typingAlignScene5(item: Scene5Item): "left" | "right" {
+  return item.kind === "user" ? "right" : "left";
+}
+
+
 function BubbleUser({ children, dimmed }: { children: ReactNode; dimmed?: boolean }) {
   return (
     <div className="flex justify-end">
@@ -256,28 +261,28 @@ function CakeFlavorCard() {
     <div
       className={`max-w-[min(92vw,340px)] overflow-hidden rounded-[16px] bg-white ${SOFT_SHADOW}`}
     >
-      <div className="flex items-center gap-2.5 bg-gradient-to-b from-neutral-50/80 to-white px-3 py-2.5">
+      <div className="flex items-center gap-2 bg-gradient-to-b from-neutral-50/80 to-white px-3 py-2">
         <div
-          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#f3e9d7] ring-1 ring-amber-900/[0.08]"
+          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#f3e9d7] ring-1 ring-amber-900/[0.08]"
           aria-hidden
         >
-          <Cake className="size-[1.1rem] text-[#5c4033]" strokeWidth={2} />
+          <Cake className="size-[0.9rem] text-[#5c4033]" strokeWidth={2} />
         </div>
-        <div className="min-w-0 text-[12px] font-bold uppercase leading-tight tracking-[0.05em] text-neutral-900 sm:text-[13px]">
+        <div className="min-w-0 text-[11px] font-bold uppercase leading-tight tracking-[0.05em] text-neutral-900">
           Oak Lane Bakery
         </div>
       </div>
-      <ul className="m-0 list-none px-3 pb-2 pt-0">
+      <ul className="m-0 list-none px-3 pb-1 pt-0">
         {CAKE_MENU.map((item, i) => (
           <li key={item.name} className="m-0 p-0">
             {i > 0 ? (
               <div className={betweenFlavorsRule} aria-hidden />
             ) : null}
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2.5">
-              <span className="min-w-0 text-[12px] font-medium leading-snug text-neutral-900 sm:text-[13px]">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0 py-1.5">
+              <span className="min-w-0 text-[12px] font-medium leading-snug text-neutral-900">
                 {item.name}
               </span>
-              <span className="shrink-0 text-[12px] font-semibold tabular-nums tracking-tight text-neutral-800 sm:text-[13px]">
+              <span className="shrink-0 text-[12px] font-semibold tabular-nums tracking-tight text-neutral-800">
                 {item.price}
               </span>
             </div>
@@ -288,41 +293,6 @@ function CakeFlavorCard() {
   );
 }
 
-function WaitlistPitchCard() {
-  return (
-    <div
-      className={`max-w-[min(92vw,400px)] overflow-hidden rounded-[20px] bg-white ${SOFT_SHADOW}`}
-    >
-      <div className="border-b border-neutral-100 px-4 py-3">
-        <span className="text-xs font-semibold lowercase tracking-wide text-neutral-500">
-          bertram
-        </span>
-        <h3 className="mt-1 text-lg font-bold leading-snug text-neutral-900">
-          Plan less, enjoy more!
-        </h3>
-      </div>
-      <div className="px-4 py-4">
-        <p className="text-[15px] leading-snug text-neutral-600">
-          One assistant for kids&apos; parties, holiday get-togethers, trips, and vacation
-          itineraries.
-        </p>
-        <button
-          type="button"
-          className="mt-4 w-full cursor-pointer rounded-full px-5 py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 sm:py-2.5"
-          style={{
-            backgroundColor: BLUE,
-            boxShadow: "0 8px 28px -8px rgba(27,111,245,0.55)",
-          }}
-          onClick={() => {
-            void signIn("google", { callbackUrl: "/welcome" });
-          }}
-        >
-          Join Waitlist
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function PlanUpgradeCards() {
   return (
@@ -429,23 +399,121 @@ const SCENE3: Scene3Item[] = [
   },
 ];
 
+function GraduationVenueCard() {
+  return (
+    <div
+      className={`ml-0 max-w-[min(92vw,400px)] overflow-hidden rounded-[16px] bg-white p-3.5 sm:p-4 ${SOFT_SHADOW}`}
+    >
+      <div className="flex gap-3">
+        <div
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white"
+          aria-hidden
+        >
+          <GraduationCap className="size-[1.35rem]" strokeWidth={2} />
+        </div>
+        <div className="min-w-0 space-y-1">
+          <div className="text-[14px] font-semibold leading-snug text-neutral-900">
+            The Loft on Wabash · Event Space
+          </div>
+          <div className="text-[12px] leading-snug text-neutral-500">
+            Sat, May 17 · 5:00 PM · 40 guests
+          </div>
+          <div className="text-[12px] leading-snug text-neutral-500">
+            River North · catering + photo setup · grad theme
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type Scene4Item =
+  | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
-  | { kind: "waitlist_card" }
-  | { kind: "user"; text: string };
+  | { kind: "graduation_venue" };
 
 const SCENE4: Scene4Item[] = [
   {
-    kind: "assistant",
-    text: "Moving parts don't have to be stressful.",
+    kind: "user",
+    text: "Emma just graduated from med school. Need a graduation party for 40 people this Saturday.",
   },
   {
     kind: "assistant",
-    text: "Want to learn more?",
+    text: "Congrats to Dr. Emma! The Loft on Wabash has a graduation package with catering and a photo setup. Saturday at 5pm is open.",
   },
-  { kind: "user", text: "Sure do!" },
-  { kind: "waitlist_card" },
+  { kind: "graduation_venue" },
+  { kind: "user", text: "Perfect, book it!" },
+  {
+    kind: "assistant",
+    text: "Done. Venue and catering are confirmed. Sending over some ideas for med school related decorations.",
+  },
 ];
+
+type Scene5Item =
+  | { kind: "user"; text: string }
+  | { kind: "assistant"; text: string };
+
+const SCENE5: Scene5Item[] = [
+  {
+    kind: "user",
+    text: "My sister is 3 months pregnant. Can you find a good time when the family is free in the next few weeks for a baby shower?",
+  },
+  {
+    kind: "assistant",
+    text: "Checked everyone's schedule. Everyone is free on Saturday, August 9th. How does dinner on the 9th work?",
+  },
+  {
+    kind: "user",
+    text: "That is perfect, lets invite everyone over to my place.",
+  },
+  {
+    kind: "assistant",
+    text: "Perfect, want me to send out invites?",
+  },
+  {
+    kind: "user",
+    text: "Yes, but this is a surprise for my sister and her husband, so don't send them the invite.",
+  },
+  {
+    kind: "assistant",
+    text: "Got it, invites have been sent!",
+  },
+];
+
+
+function PersistentWaitlistBar() {
+  return (
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 sm:px-6"
+      style={{
+        paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)",
+      }}
+    >
+      <div
+        className="pointer-events-auto mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3"
+        style={{
+          boxShadow:
+            "0 12px 42px -10px rgba(0,0,0,0.55), 0 6px 20px -8px rgba(0,0,0,0.32), 0 0 0 1px rgba(0,0,0,0.05) inset",
+        }}
+      >
+        <p className="min-w-0 text-[13px] font-semibold leading-snug text-neutral-500">
+          Your personal event planner.
+        </p>
+        <button
+          type="button"
+          onClick={() => void signIn("google", { callbackUrl: "/welcome" })}
+          className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-125 active:brightness-90"
+          style={{
+            backgroundColor: "#0a0a0a",
+            boxShadow: "0 4px 14px -4px rgba(0,0,0,0.5)",
+          }}
+        >
+          Join Waitlist
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function SceneBlock({
   children,
@@ -461,13 +529,15 @@ function SceneBlock({
       ref={sectionRef}
       className="relative flex min-h-[100dvh] snap-start snap-always flex-col bg-transparent"
     >
-      <div className="flex min-h-0 flex-1 flex-col px-4 pb-10 pt-28 sm:px-6 sm:pt-32">
+      {/* Extra bottom padding so demos never hide behind the fixed bar */}
+      <div className="flex min-h-0 flex-1 flex-col px-4 pb-28 pt-28 sm:px-6 sm:pt-32">
         <div className="mx-auto flex w-full max-w-md flex-col justify-start gap-2.5">
           {children}
         </div>
       </div>
       {showScrollHint ? (
-        <p className="pointer-events-none absolute bottom-4 left-0 right-0 text-center text-xs font-bold text-white">
+        /* Positioned above the fixed bottom bar (~72px) + comfortable gap */
+        <p className="pointer-events-none absolute bottom-24 left-0 right-0 text-center text-xs font-bold text-white">
           Scroll down for more
         </p>
       ) : null}
@@ -558,10 +628,26 @@ function renderScene4Item(item: Scene4Item, i: number) {
   }
   return (
     <div key={i} className="message-fade-in flex justify-start">
-      <WaitlistPitchCard />
+      <GraduationVenueCard />
     </div>
   );
 }
+
+function renderScene5Item(item: Scene5Item, i: number) {
+  if (item.kind === "user") {
+    return (
+      <div key={i} className="message-fade-in">
+        <BubbleUser>{item.text}</BubbleUser>
+      </div>
+    );
+  }
+  return (
+    <div key={i} className="message-fade-in">
+      <BubbleAssistant>{item.text}</BubbleAssistant>
+    </div>
+  );
+}
+
 
 export function DoubtfireLanding() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -569,11 +655,66 @@ export function DoubtfireLanding() {
   const s2 = useRef<HTMLElement>(null);
   const s3 = useRef<HTMLElement>(null);
   const s4 = useRef<HTMLElement>(null);
+  const s5 = useRef<HTMLElement>(null);
 
   const s1State = useStaggeredReveal(SCENE1.length, s1, scrollRef);
   const s2State = useStaggeredReveal(SCENE2.length, s2, scrollRef);
   const s3State = useStaggeredReveal(SCENE3.length, s3, scrollRef);
   const s4State = useStaggeredReveal(SCENE4.length, s4, scrollRef);
+  const s5State = useStaggeredReveal(SCENE5.length, s5, scrollRef);
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+
+    // Forward loop: fired on every scroll event. When scrollTop + clientHeight
+    // reaches the very end (the ghost snap section), instantly jump to scene 1.
+    // This is reliable because it checks exact pixel position, not intersection ratios.
+    const handleScroll = () => {
+      const { scrollTop, clientHeight, scrollHeight } = scrollEl;
+      if (scrollTop + clientHeight >= scrollHeight - 5) {
+        scrollEl.scrollTo({ top: 0, behavior: "instant" });
+      }
+    };
+
+    // Backward loop: at scene 1 (scrollTop === 0), wheel-up or swipe-down → scene 5.
+    const jumpToLastScene = () => {
+      const lastScene = s5.current;
+      if (lastScene) {
+        scrollEl.scrollTo({ top: lastScene.offsetTop, behavior: "instant" });
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (scrollEl.scrollTop === 0 && e.deltaY < 0) {
+        e.preventDefault();
+        jumpToLastScene();
+      }
+    };
+
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartY = e.touches[0].clientY;
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      const swipedDown = e.changedTouches[0].clientY - touchStartY > 40;
+      if (scrollEl.scrollTop === 0 && swipedDown) {
+        jumpToLastScene();
+      }
+    };
+
+    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+    scrollEl.addEventListener("wheel", handleWheel, { passive: false });
+    scrollEl.addEventListener("touchstart", handleTouchStart, { passive: true });
+    scrollEl.addEventListener("touchend", handleTouchEnd, { passive: true });
+
+    return () => {
+      scrollEl.removeEventListener("scroll", handleScroll);
+      scrollEl.removeEventListener("wheel", handleWheel);
+      scrollEl.removeEventListener("touchstart", handleTouchStart);
+      scrollEl.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, []);
 
   return (
     <div
@@ -587,6 +728,7 @@ export function DoubtfireLanding() {
       }}
     >
       <BertramStaticBg />
+      <PersistentWaitlistBar />
       <div className="relative z-10 isolate">
         <DoubtfireSiteHeader />
 
@@ -611,12 +753,23 @@ export function DoubtfireLanding() {
         )}
       </SceneBlock>
 
-      <SceneBlock sectionRef={s4} showScrollHint={false}>
+      <SceneBlock sectionRef={s4}>
         {SCENE4.slice(0, s4State.revealed).map((item, i) => renderScene4Item(item, i))}
         {s4State.typing && s4State.revealed < SCENE4.length && (
           <TypingBubble align={typingAlignScene4(SCENE4[s4State.revealed])} />
         )}
       </SceneBlock>
+
+      <SceneBlock sectionRef={s5}>
+        {SCENE5.slice(0, s5State.revealed).map((item, i) => renderScene5Item(item, i))}
+        {s5State.typing && s5State.revealed < SCENE5.length && (
+          <TypingBubble align={typingAlignScene5(SCENE5[s5State.revealed])} />
+        )}
+      </SceneBlock>
+
+      {/* Ghost snap section — invisible, provides a snap target after scene 5
+           so the scroll event can detect end-of-list and loop back to scene 1 */}
+      <div aria-hidden className="min-h-[100dvh] snap-start snap-always" />
       </div>
     </div>
   );
