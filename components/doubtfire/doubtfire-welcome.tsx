@@ -4,11 +4,12 @@ import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
 import {
-  DOUBTFIRE_BLUE as BLUE,
   DOUBTFIRE_SOFT_SHADOW as SOFT_SHADOW,
   BertramStaticBg,
   DoubtfireSiteHeader,
 } from "./doubtfire-chrome";
+
+const BLUE = "#111827";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -424,10 +425,7 @@ export function DoubtfireWelcome({ email }: { email: string }) {
     return (
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-            bertram
-          </p>
-          <h1 className="mt-1 text-2xl font-bold leading-tight text-neutral-900">
+          <h1 className="text-2xl font-bold leading-tight text-neutral-900">
             What are you planning?
           </h1>
           <p className="mt-1.5 text-[15px] text-neutral-500">
@@ -604,11 +602,7 @@ export function DoubtfireWelcome({ email }: { email: string }) {
             You&apos;re on the list.
           </h2>
           <p className="mt-2 text-[15px] leading-snug text-neutral-500">
-            We&apos;ll reach out when Bertram is ready for{" "}
-            <span className="font-semibold text-neutral-700 lowercase">
-              {category ? CATEGORY_LABELS[category] : "your event"}
-            </span>
-            .
+            We&apos;ll reach out when Bertram is ready for you.
           </p>
         </div>
         <p className="text-[13px] text-neutral-400">{email}</p>
