@@ -75,6 +75,28 @@ async def upsert_landing_waitlist(
     await db.flush()
 
 
+class LandingWaitlistCheckResponse(BaseModel):
+    on_waitlist: bool
+
+
+@router.get(
+    "/api/landing-waitlist",
+    response_model=LandingWaitlistCheckResponse,
+)
+async def check_landing_waitlist(
+    email: str,
+    db: AsyncSession = Depends(get_session),
+) -> LandingWaitlistCheckResponse:
+    normalized = _normalize_email(email)
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Email is required.")
+    result = await db.execute(
+        select(LandingWaitlistRow).where(LandingWaitlistRow.email == normalized)
+    )
+    existing = result.scalar_one_or_none()
+    return LandingWaitlistCheckResponse(on_waitlist=existing is not None)
+
+
 @router.post(
     "/api/landing-waitlist",
     response_model=LandingWaitlistSignupResponse,

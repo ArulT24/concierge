@@ -4,6 +4,31 @@ import { auth } from "@/auth";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
+export async function GET(request: Request) {
+  const session = await auth();
+  const sessionEmail = session?.user?.email?.trim().toLowerCase();
+
+  if (!session || !sessionEmail) {
+    return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+
+  try {
+    const res = await fetch(
+      `${BACKEND_URL}/api/landing-waitlist?email=${encodeURIComponent(sessionEmail)}`
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: data.detail ?? "Check failed." },
+        { status: res.status }
+      );
+    }
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json({ error: "Could not reach backend." }, { status: 502 });
+  }
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   const sessionEmail = session?.user?.email?.trim().toLowerCase();

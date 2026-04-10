@@ -4,11 +4,12 @@ import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 
 import {
-  DOUBTFIRE_BLUE as BLUE,
   DOUBTFIRE_SOFT_SHADOW as SOFT_SHADOW,
   BertramStaticBg,
   DoubtfireSiteHeader,
 } from "./doubtfire-chrome";
+
+const BLUE = "#111827";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -27,7 +28,7 @@ type Answers = Record<string, string>;
 // Per-category question definitions
 // ---------------------------------------------------------------------------
 
-type QuestionKind = "text" | "options" | "date";
+type QuestionKind = "text" | "options" | "date" | "multi";
 
 interface Question {
   id: string;
@@ -37,6 +38,21 @@ interface Question {
   options?: string[];
   optional?: boolean;
 }
+
+const HELP_QUESTION: Question = {
+  id: "help",
+  prompt: "What do you need most help with?",
+  kind: "multi",
+  options: [
+    "Finding a venue",
+    "Catering & food",
+    "Entertainment",
+    "Decorations",
+    "Invitations & RSVPs",
+    "Budget planning",
+    "All of it",
+  ],
+};
 
 const QUESTIONS: Record<Category, Question[]> = {
   birthday: [
@@ -55,8 +71,8 @@ const QUESTIONS: Record<Category, Question[]> = {
     {
       id: "age",
       prompt: "How old are they turning?",
-      kind: "options",
-      options: ["Under 10", "Teen", "21", "30s", "40s", "50+", "Other"],
+      kind: "text",
+      placeholder: "e.g. 7, 30, 50…",
     },
     {
       id: "when",
@@ -66,10 +82,17 @@ const QUESTIONS: Record<Category, Question[]> = {
     },
     {
       id: "location",
-      prompt: "Where, and how many guests?",
-      kind: "options",
-      options: ["Under 10 guests", "10–30 guests", "30+ guests", "Not sure yet"],
+      prompt: "Where is the party?",
+      kind: "text",
+      placeholder: "City, venue, or address",
     },
+    {
+      id: "guests",
+      prompt: "How many guests?",
+      kind: "options",
+      options: ["Under 10", "10–25", "25–50", "50+"],
+    },
+    HELP_QUESTION,
   ],
   vacation: [
     {
@@ -149,17 +172,17 @@ const QUESTIONS: Record<Category, Question[]> = {
         "Intimate dinner (< 10)",
         "Small party (10–30)",
         "Big bash (30+)",
-        "Surprise",
-        "Trip away",
+        "Other",
       ],
     },
+    HELP_QUESTION,
   ],
   holiday: [
     {
       id: "holiday",
       prompt: "Which holiday?",
-      kind: "options",
-      options: ["Christmas", "Hanukkah", "Thanksgiving", "New Year's", "Other"],
+      kind: "text",
+      placeholder: "e.g. Christmas, Diwali, Eid, New Year's…",
     },
     {
       id: "when",
@@ -173,18 +196,7 @@ const QUESTIONS: Record<Category, Question[]> = {
       kind: "options",
       options: ["Under 10", "10–25", "25–50", "50+"],
     },
-    {
-      id: "help",
-      prompt: "What do you need most help with?",
-      kind: "options",
-      options: [
-        "Menu & food",
-        "Décor",
-        "Activities",
-        "Managing RSVPs",
-        "All of it",
-      ],
-    },
+    HELP_QUESTION,
   ],
   other: [
     {
@@ -193,6 +205,7 @@ const QUESTIONS: Record<Category, Question[]> = {
       kind: "text",
       placeholder: "The more detail the better — Bertram will thank you.",
     },
+    HELP_QUESTION,
   ],
 };
 
@@ -336,12 +349,22 @@ type WizardStep =
   | { kind: "question"; index: number }
   | { kind: "confirm" };
 
-export function DoubtfireWelcome({ email }: { email: string }) {
+export function DoubtfireWelcome({
+  email,
+  alreadyOnWaitlist = false,
+}: {
+  email: string;
+  alreadyOnWaitlist?: boolean;
+}) {
   const [category, setCategory] = useState<Category | null>(null);
-  const [step, setStep] = useState<WizardStep>({ kind: "category" });
+  const [step, setStep] = useState<WizardStep>(
+    alreadyOnWaitlist ? { kind: "confirm" } : { kind: "category" }
+  );
   const [answers, setAnswers] = useState<Answers>({});
   const [pendingText, setPendingText] = useState("");
-  const [pendingDate, setPendingDate] = useState("");
+  const [pendingMultiSelected, setPendingMultiSelected] = useState<Set<string>>(new Set());
+  const [pendingCustomItems, setPendingCustomItems] = useState<string[]>([]);
+  const [pendingCustomInput, setPendingCustomInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -356,29 +379,69 @@ export function DoubtfireWelcome({ email }: { email: string }) {
         ? 1 + step.index
         : totalDots - 1;
 
+  function initPendingForQuestion(q: Question, savedAnswers: Answers) {
+    const saved = savedAnswers[q.id] ?? "";
+    if (q.kind === "multi") {
+      if (!saved) {
+        setPendingMultiSelected(new Set());
+        setPendingCustomItems([]);
+      } else {
+        const parts = saved.split(", ").map((s) => s.trim()).filter(Boolean);
+        const optionSet = new Set(q.options ?? []);
+        const selected = new Set<string>();
+        const custom: string[] = [];
+        for (const p of parts) {
+          if (optionSet.has(p)) selected.add(p);
+          else custom.push(p);
+        }
+        setPendingMultiSelected(selected);
+        setPendingCustomItems(custom);
+      }
+      setPendingCustomInput("");
+    } else {
+      setPendingText(saved);
+    }
+  }
+
   function handleCategorySelect(cat: Category) {
     setCategory(cat);
     setAnswers({});
     setPendingText("");
-    setPendingDate("");
+    setPendingMultiSelected(new Set());
+    setPendingCustomItems([]);
+    setPendingCustomInput("");
   }
 
   function handleCategoryNext() {
     if (!category) return;
+    const firstQ = QUESTIONS[category][0];
+    initPendingForQuestion(firstQ, answers);
     setStep({ kind: "question", index: 0 });
   }
 
   function advanceFromQuestion(qIndex: number, value: string) {
     if (!category) return;
     const q = questions[qIndex];
-    setAnswers((prev) => ({ ...prev, [q.id]: value }));
-    setPendingText("");
-    setPendingDate("");
+    const newAnswers = { ...answers, [q.id]: value };
+    setAnswers(newAnswers);
 
     if (qIndex + 1 < questions.length) {
+      const nextQ = questions[qIndex + 1];
+      initPendingForQuestion(nextQ, newAnswers);
       setStep({ kind: "question", index: qIndex + 1 });
     } else {
-      handleSubmit({ ...answers, [q.id]: value });
+      handleSubmit(newAnswers);
+    }
+  }
+
+  function goBack(qIndex: number) {
+    if (qIndex === 0) {
+      setPendingText("");
+      setStep({ kind: "category" });
+    } else {
+      const targetQ = questions[qIndex - 1];
+      initPendingForQuestion(targetQ, answers);
+      setStep({ kind: "question", index: qIndex - 1 });
     }
   }
 
@@ -424,15 +487,9 @@ export function DoubtfireWelcome({ email }: { email: string }) {
     return (
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400">
-            bertram
-          </p>
-          <h1 className="mt-1 text-2xl font-bold leading-tight text-neutral-900">
+          <h1 className="text-2xl font-bold leading-tight text-neutral-900">
             What are you planning?
           </h1>
-          <p className="mt-1.5 text-[15px] text-neutral-500">
-            Pick the one that fits best — we&apos;ll tailor everything to you.
-          </p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -477,9 +534,34 @@ export function DoubtfireWelcome({ email }: { email: string }) {
     const q = questions[qIndex];
     const currentAnswer = answers[q.id] ?? "";
 
-    const inputValue = q.kind === "date" ? pendingDate : pendingText;
+    const inputValue = pendingText;
+    const multiValue = [...pendingMultiSelected, ...pendingCustomItems].join(", ");
     const hasValue =
-      q.kind === "options" ? !!currentAnswer : inputValue.trim().length > 0;
+      q.kind === "options"
+        ? !!currentAnswer
+        : q.kind === "multi"
+          ? pendingMultiSelected.size > 0 || pendingCustomItems.length > 0
+          : inputValue.trim().length > 0;
+
+    const isLastQuestion = qIndex + 1 === questions.length;
+
+    function handleNext() {
+      if (!hasValue) return;
+      if (q.kind === "options") {
+        advanceFromQuestion(qIndex, currentAnswer);
+      } else if (q.kind === "multi") {
+        advanceFromQuestion(qIndex, multiValue);
+      } else {
+        advanceFromQuestion(qIndex, pendingText.trim());
+      }
+    }
+
+    function handleAddCustom() {
+      const trimmed = pendingCustomInput.trim();
+      if (!trimmed) return;
+      setPendingCustomItems((prev) => [...prev, trimmed]);
+      setPendingCustomInput("");
+    }
 
     return (
       <div className="flex flex-col gap-4">
@@ -499,16 +581,109 @@ export function DoubtfireWelcome({ email }: { email: string }) {
                 key={opt}
                 label={opt}
                 selected={currentAnswer === opt}
-                onClick={() => advanceFromQuestion(qIndex, opt)}
+                onClick={() =>
+                  setAnswers((prev) => ({ ...prev, [q.id]: opt }))
+                }
               />
             ))}
+          </div>
+        )}
+
+        {q.kind === "multi" && (
+          <div className="flex flex-col gap-2">
+            {q.options!.map((opt) => {
+              const checked = pendingMultiSelected.has(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() =>
+                    setPendingMultiSelected((prev) => {
+                      const next = new Set(prev);
+                      next.has(opt) ? next.delete(opt) : next.add(opt);
+                      return next;
+                    })
+                  }
+                  className="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left text-[15px] font-medium leading-snug transition-all"
+                  style={
+                    checked
+                      ? { borderColor: BLUE, backgroundColor: `${BLUE}0d`, color: BLUE }
+                      : { borderColor: "#e5e7eb", backgroundColor: "#ffffff", color: "#111827" }
+                  }
+                >
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors"
+                    style={
+                      checked
+                        ? { borderColor: BLUE, backgroundColor: BLUE }
+                        : { borderColor: "#d1d5db", backgroundColor: "#ffffff" }
+                    }
+                  >
+                    {checked && (
+                      <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 12 12">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  {opt}
+                </button>
+              );
+            })}
+
+            {/* Custom added items */}
+            {pendingCustomItems.map((item, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-2 rounded-xl border px-4 py-3 text-[15px] font-medium"
+                style={{ borderColor: BLUE, backgroundColor: `${BLUE}0d`, color: BLUE }}
+              >
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded border-2"
+                  style={{ borderColor: BLUE, backgroundColor: BLUE }}
+                >
+                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 12 12">
+                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className="flex-1">{item}</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPendingCustomItems((prev) => prev.filter((_, idx) => idx !== i))
+                  }
+                  className="ml-auto text-neutral-400 hover:text-neutral-600"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+
+            {/* Add other input */}
+            <div className="flex gap-2 pt-1">
+              <input
+                type="text"
+                value={pendingCustomInput}
+                onChange={(e) => setPendingCustomInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddCustom()}
+                placeholder="Add other…"
+                className="flex-1 rounded-xl border border-neutral-200 px-4 py-2.5 text-[14px] text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              />
+              <button
+                type="button"
+                onClick={handleAddCustom}
+                disabled={!pendingCustomInput.trim()}
+                className="rounded-xl border border-neutral-200 px-4 py-2.5 text-[14px] font-medium text-neutral-600 transition-colors hover:bg-neutral-50 disabled:opacity-40"
+              >
+                Add
+              </button>
+            </div>
           </div>
         )}
 
         {q.kind === "text" && (
           <textarea
             rows={3}
-            className="w-full resize-none rounded-xl border border-neutral-200 px-4 py-3 text-[15px] leading-snug text-neutral-900 placeholder:text-neutral-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full resize-none rounded-xl border border-neutral-200 px-4 py-3 text-[15px] leading-snug text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
             placeholder={q.placeholder ?? ""}
             value={pendingText}
             onChange={(e) => setPendingText(e.target.value)}
@@ -518,70 +693,42 @@ export function DoubtfireWelcome({ email }: { email: string }) {
         {q.kind === "date" && (
           <div className="flex flex-col gap-2">
             <input
-              type="date"
-              className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              value={pendingDate}
-              onChange={(e) => setPendingDate(e.target.value)}
+              type="text"
+              className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-[15px] text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              placeholder="e.g. December 2026, late spring, not sure yet…"
+              value={pendingText}
+              onChange={(e) => setPendingText(e.target.value)}
             />
-            <button
-              type="button"
-              className="text-center text-sm text-neutral-400 underline underline-offset-2 hover:text-neutral-600"
-              onClick={() => advanceFromQuestion(qIndex, q.placeholder ?? "Not sure yet")}
-            >
-              {q.placeholder ?? "Not sure yet"}
-            </button>
           </div>
-        )}
-
-        {q.kind === "text" && (
-          <button
-            type="button"
-            disabled={!hasValue || submitting}
-            onClick={() => advanceFromQuestion(qIndex, inputValue.trim())}
-            className="w-full rounded-full py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
-            style={{
-              backgroundColor: BLUE,
-              boxShadow: hasValue
-                ? "0 8px 28px -8px rgba(27,111,245,0.55)"
-                : "none",
-            }}
-          >
-            {submitting ? "Saving…" : "Continue"}
-          </button>
-        )}
-
-        {q.kind === "date" && pendingDate && (
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => advanceFromQuestion(qIndex, pendingDate)}
-            className="w-full rounded-full py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
-            style={{
-              backgroundColor: BLUE,
-              boxShadow: "0 8px 28px -8px rgba(27,111,245,0.55)",
-            }}
-          >
-            {submitting ? "Saving…" : "Continue"}
-          </button>
         )}
 
         {submitError && (
           <p className="text-center text-sm text-red-500">{submitError}</p>
         )}
 
-        {qIndex > 0 && (
+        {/* Back / Next footer */}
+        <div className="flex items-center gap-3 pt-1">
           <button
             type="button"
-            className="text-center text-sm text-neutral-400 hover:text-neutral-600"
-            onClick={() => {
-              setPendingText("");
-              setPendingDate("");
-              setStep({ kind: "question", index: qIndex - 1 });
-            }}
+            onClick={() => goBack(qIndex)}
+            className="flex-1 rounded-full border border-neutral-200 py-3 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-50 active:bg-neutral-100"
           >
             ← Back
           </button>
-        )}
+          <button
+            type="button"
+            disabled={!hasValue || submitting}
+            onClick={handleNext}
+            className="flex-1 rounded-full py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+            style={{ backgroundColor: BLUE }}
+          >
+            {submitting
+              ? "Saving…"
+              : isLastQuestion
+                ? "Submit"
+                : "Next →"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -604,11 +751,7 @@ export function DoubtfireWelcome({ email }: { email: string }) {
             You&apos;re on the list.
           </h2>
           <p className="mt-2 text-[15px] leading-snug text-neutral-500">
-            We&apos;ll reach out when Bertram is ready for{" "}
-            <span className="font-semibold text-neutral-700 lowercase">
-              {category ? CATEGORY_LABELS[category] : "your event"}
-            </span>
-            .
+            We&apos;ll reach out when Bertram is ready for you.
           </p>
         </div>
         <p className="text-[13px] text-neutral-400">{email}</p>

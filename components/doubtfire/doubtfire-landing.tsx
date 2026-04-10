@@ -490,19 +490,19 @@ function PersistentWaitlistBar() {
       }}
     >
       <div
-        className="pointer-events-auto mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3"
+        className="pointer-events-auto mx-auto flex max-w-md items-center gap-3 rounded-2xl bg-white py-2 pl-5 pr-5"
         style={{
           boxShadow:
             "0 12px 42px -10px rgba(0,0,0,0.55), 0 6px 20px -8px rgba(0,0,0,0.32), 0 0 0 1px rgba(0,0,0,0.05) inset",
         }}
       >
-        <p className="min-w-0 text-[13px] font-semibold leading-snug text-neutral-500">
-          Your personal event planner.
+        <p className="min-w-0 flex-1 text-[15px] leading-snug text-neutral-500">
+          Your <span className="font-bold text-neutral-900">personal</span> event planner.
         </p>
         <button
           type="button"
           onClick={() => void signIn("google", { callbackUrl: "/welcome" })}
-          className="shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-125 active:brightness-90"
+          className="shrink-0 rounded-xl px-10 py-2 text-base font-semibold text-white transition-[filter] hover:brightness-125 active:brightness-90"
           style={{
             backgroundColor: "#0a0a0a",
             boxShadow: "0 4px 14px -4px rgba(0,0,0,0.5)",
