@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Copy, Check } from "lucide-react";
 
 import {
   DOUBTFIRE_SOFT_SHADOW as SOFT_SHADOW,
@@ -350,11 +350,23 @@ type WizardStep =
   | { kind: "confirm" };
 
 export function DoubtfireWelcome({
-  email,
+  identifier,
+  identifierType = "email",
   alreadyOnWaitlist = false,
+  initialReferralCode,
+  initialReferralCount = 0,
+  referredBy,
+  getAuthToken,
 }: {
-  email: string;
+  /** The user's email address (Google) or E.164 phone number (phone OTP). */
+  identifier: string;
+  identifierType?: "email" | "phone";
   alreadyOnWaitlist?: boolean;
+  initialReferralCode?: string;
+  initialReferralCount?: number;
+  referredBy?: string;
+  /** Optional async function that returns the Bearer token for authenticated requests (phone OTP flow). */
+  getAuthToken?: () => Promise<string | null>;
 }) {
   const [category, setCategory] = useState<Category | null>(null);
   const [step, setStep] = useState<WizardStep>(
@@ -367,17 +379,15 @@ export function DoubtfireWelcome({
   const [pendingCustomInput, setPendingCustomInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string>(initialReferralCode ?? "");
+  const [referralCount, setReferralCount] = useState<number>(initialReferralCount);
+  const [copied, setCopied] = useState(false);
 
   const questions = category ? QUESTIONS[category] : [];
 
-  // Total dot count: category step + all questions
-  const totalDots = category ? 1 + questions.length : 1;
-  const currentDot =
-    step.kind === "category"
-      ? 0
-      : step.kind === "question"
-        ? 1 + step.index
-        : totalDots - 1;
+  // Only two steps now: category → confirm (questions are skipped).
+  const totalDots = 1;
+  const currentDot = step.kind === "category" ? 0 : 0;
 
   function initPendingForQuestion(q: Question, savedAnswers: Answers) {
     const saved = savedAnswers[q.id] ?? "";
@@ -453,14 +463,21 @@ export function DoubtfireWelcome({
     const planning_interest = buildPlanningInterest(category, finalAnswers);
 
     try {
+      const authToken = getAuthToken ? await getAuthToken() : null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+
       const res = await fetch("/api/landing-waitlist", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
-          email,
+          ...(identifierType === "email"
+            ? { email: identifier }
+            : { phone_number: identifier }),
           planning_interest,
           event_category: category,
           intake_answers: finalAnswers,
+          referred_by: referredBy ?? null,
         }),
       });
 
@@ -468,6 +485,13 @@ export function DoubtfireWelcome({
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Something went wrong.");
       }
+
+      const data = (await res.json()) as {
+        referral_code?: string;
+        referral_count?: number;
+      };
+      if (data.referral_code) setReferralCode(data.referral_code);
+      if (typeof data.referral_count === "number") setReferralCount(data.referral_count);
 
       setStep({ kind: "confirm" });
     } catch (err) {
@@ -511,10 +535,14 @@ export function DoubtfireWelcome({
           ))}
         </div>
 
+        {submitError && (
+          <p className="text-[13px] text-red-600">{submitError}</p>
+        )}
+
         <button
           type="button"
-          disabled={!category}
-          onClick={handleCategoryNext}
+          disabled={!category || submitting}
+          onClick={() => void handleSubmit({})}
           className="mt-1 w-full rounded-full py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
           style={{
             backgroundColor: BLUE,
@@ -523,7 +551,7 @@ export function DoubtfireWelcome({
               : "none",
           }}
         >
-          Continue
+          {submitting ? "Joining…" : "Join Waitlist"}
         </button>
       </div>
     );
@@ -733,7 +761,18 @@ export function DoubtfireWelcome({
     );
   }
 
+  function handleCopyLink() {
+    if (!referralCode) return;
+    const url = `${window.location.origin}/welcome?ref=${referralCode}`;
+    void navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   function renderConfirmStep() {
+    const spotsLeft = Math.max(0, 3 - referralCount);
+
     return (
       <div className="flex flex-col items-center gap-5 py-4 text-center">
         <div
@@ -754,7 +793,55 @@ export function DoubtfireWelcome({
             We&apos;ll reach out when Bertram is ready for you.
           </p>
         </div>
-        <p className="text-[13px] text-neutral-400">{email}</p>
+
+        {referralCode && (
+          <div className="w-full rounded-2xl border border-neutral-100 bg-neutral-50 p-4 text-left">
+            <p className="text-[13px] font-semibold text-neutral-800">
+              Move up the list — refer 3 friends
+            </p>
+            <p className="mt-0.5 text-[12px] leading-snug text-neutral-500">
+              {spotsLeft === 0
+                ? "You've referred 3 friends — you're at the top!"
+                : `Get early access when ${spotsLeft} more friend${spotsLeft !== 1 ? "s" : ""} sign up.`}
+            </p>
+
+            {/* 3-slot progress row */}
+            <div className="mt-3 flex gap-2">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="flex h-8 flex-1 items-center justify-center rounded-lg text-[11px] font-semibold transition-colors"
+                  style={{
+                    backgroundColor: i < referralCount ? BLUE : "#e5e7eb",
+                    color: i < referralCount ? "#ffffff" : "#9ca3af",
+                  }}
+                >
+                  {i < referralCount ? "✓" : i + 1}
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white py-2.5 text-[13px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 active:bg-neutral-100"
+            >
+              {copied ? (
+                <>
+                  <Check className="size-3.5 text-emerald-600" strokeWidth={2.5} />
+                  <span className="text-emerald-600">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="size-3.5" strokeWidth={2} />
+                  Copy invite link
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        <p className="text-[12px] text-neutral-400">{identifier}</p>
       </div>
     );
   }
