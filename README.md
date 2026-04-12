@@ -47,6 +47,8 @@ OPENAI_API_KEY=...
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
 TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=anant@bertram.cool
 
 # Optional: enrich vendor URLs (Browserbase + Playwright)
 BROWSERBASE_API_KEY=...
@@ -62,6 +64,8 @@ playwright install chromium
 Vendor enrichment uses `backend.services.search.browserbase_client.scrape_vendor_page` (async) or `scrape_vendor_page_sync` (blocking). Celery workers need the same Browserbase env vars if you run enrichment in tasks.
 
 **Anthropic** (fit scoring after scrape): set `ANTHROPIC_API_KEY` in `.env.local`. Optional: `ANTHROPIC_MODEL` (default `claude-3-5-sonnet-20241022`).
+
+**Resend** (waitlist confirmation email): set `RESEND_API_KEY` and a verified sender `RESEND_FROM_EMAIL` (optional `RESEND_FROM_NAME`, defaults to `Bertram`). New `POST /api/landing-waitlist` signups enqueue a non-blocking confirmation email; repeated upserts do not resend it.
 
 ### Vendor pipeline (Exa → Browserbase → score)
 

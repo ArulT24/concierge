@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database.connection import get_session
 from backend.logging_config import get_logger
 from backend.models.db import LandingWaitlistRow
+from backend.services.tasks import send_waitlist_confirmation_email_task
 
 logger = get_logger(__name__)
 
@@ -73,10 +74,10 @@ async def upsert_landing_waitlist(
     event_category: str | None = None,
     intake_answers: dict | None = None,
     referred_by: str | None = None,
-) -> tuple[str, int]:
-    """Insert or update a landing_waitlist row. Returns (referral_code, referral_count)."""
+) -> tuple[str, int, bool]:
+    """Insert or update a landing_waitlist row. Returns (referral_code, referral_count, created)."""
     if not email and not phone_number:
-        return ("", 0)
+        return ("", 0, False)
 
     # Look up existing row by email (preferred) or phone_number
     existing: LandingWaitlistRow | None = None
@@ -108,7 +109,7 @@ async def upsert_landing_waitlist(
         identifier = email or phone_number
         logger.info("landing_waitlist updated", identifier=identifier)
         await db.flush()
-        return (existing.referral_code, existing.referral_count)
+        return (existing.referral_code, existing.referral_count, False)
 
     # New signup
     referral_code = _generate_referral_code()
@@ -135,7 +136,7 @@ async def upsert_landing_waitlist(
         )
         await db.flush()
 
-    return (referral_code, 0)
+    return (referral_code, 0, True)
 
 
 @router.get(
@@ -189,7 +190,7 @@ async def signup_landing_waitlist(
     if not email and not phone_number:
         raise HTTPException(status_code=400, detail="email or phone_number is required.")
 
-    referral_code, referral_count = await upsert_landing_waitlist(
+    referral_code, referral_count, created = await upsert_landing_waitlist(
         db=db,
         email=email,
         phone_number=phone_number,
@@ -198,6 +199,18 @@ async def signup_landing_waitlist(
         intake_answers=body.intake_answers,
         referred_by=body.referred_by,
     )
+    await db.commit()
+
+    if created and email:
+        try:
+            send_waitlist_confirmation_email_task.delay(email)
+        except Exception as exc:
+            logger.warning(
+                "waitlist confirmation enqueue failed",
+                email=email,
+                error=str(exc),
+            )
+
     return LandingWaitlistSignupResponse(
         message="You're on the list.",
         referral_code=referral_code,

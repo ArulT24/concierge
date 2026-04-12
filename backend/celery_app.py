@@ -25,6 +25,7 @@ celery.conf.update(
     task_routes={
         "backend.workflows.*": {"queue": "workflows"},
         "backend.agents.*": {"queue": "agents"},
+        "backend.services.tasks.*": {"queue": "workflows"},
         "backend.services.vendor_call_service.*": {"queue": "calls"},
         "backend.services.search.*": {"queue": "searches"},
     },

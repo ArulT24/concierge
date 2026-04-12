@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     browserbase_api_key: str = ""
     browserbase_project_id: str = ""
 
+    # ── Resend (transactional email) ──────────────────
+    resend_api_key: str = ""
+    resend_from_email: str = ""
+    resend_from_name: str = "Bertram"
+
     # ── CORS ──────────────────────────────────────
     cors_origins: str = ""
 
