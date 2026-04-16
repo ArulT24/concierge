@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, Copy, Check } from "lucide-react";
+
+import { REFERRAL_STORAGE_KEY } from "@/lib/referral-storage";
 
 import {
   DOUBTFIRE_SOFT_SHADOW as SOFT_SHADOW,
@@ -382,8 +384,31 @@ export function DoubtfireWelcome({
   const [referralCode, setReferralCode] = useState<string>(initialReferralCode ?? "");
   const [referralCount, setReferralCount] = useState<number>(initialReferralCount);
   const [copied, setCopied] = useState(false);
+  /** Free-text when category is "other" (shown on the category step). */
+  const [otherDetails, setOtherDetails] = useState("");
+
+  useEffect(() => {
+    if (referredBy?.trim()) {
+      try {
+        sessionStorage.setItem(REFERRAL_STORAGE_KEY, referredBy.trim());
+      } catch {
+        /* ignore quota / private mode */
+      }
+    }
+  }, [referredBy]);
 
   const questions = category ? QUESTIONS[category] : [];
+
+  function effectiveReferredBy(): string | null {
+    const fromUrl = referredBy?.trim();
+    if (fromUrl) return fromUrl;
+    if (typeof window === "undefined") return null;
+    try {
+      return sessionStorage.getItem(REFERRAL_STORAGE_KEY)?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
 
   // Only two steps now: category → confirm (questions are skipped).
   const totalDots = 1;
@@ -420,6 +445,7 @@ export function DoubtfireWelcome({
     setPendingMultiSelected(new Set());
     setPendingCustomItems([]);
     setPendingCustomInput("");
+    if (cat !== "other") setOtherDetails("");
   }
 
   function handleCategoryNext() {
@@ -477,7 +503,7 @@ export function DoubtfireWelcome({
           planning_interest,
           event_category: category,
           intake_answers: finalAnswers,
-          referred_by: referredBy ?? null,
+          referred_by: effectiveReferredBy(),
         }),
       });
 
@@ -492,6 +518,12 @@ export function DoubtfireWelcome({
       };
       if (data.referral_code) setReferralCode(data.referral_code);
       if (typeof data.referral_count === "number") setReferralCount(data.referral_count);
+
+      try {
+        sessionStorage.removeItem(REFERRAL_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
 
       setStep({ kind: "confirm" });
     } catch (err) {
@@ -518,13 +550,7 @@ export function DoubtfireWelcome({
 
         <div className="flex flex-col gap-2">
           {(
-            [
-              "birthday",
-              "vacation",
-              "celebration",
-              "holiday",
-              "other",
-            ] as Category[]
+            ["birthday", "vacation", "celebration", "holiday"] as Category[]
           ).map((cat) => (
             <CategoryTile
               key={cat}
@@ -533,6 +559,30 @@ export function DoubtfireWelcome({
               onClick={() => handleCategorySelect(cat)}
             />
           ))}
+          <CategoryTile
+            category="other"
+            selected={category === "other"}
+            onClick={() => handleCategorySelect("other")}
+          />
+          {category === "other" && (
+            <div className="mt-1 rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.12)]">
+              <label
+                htmlFor="other-planning-details"
+                className="sr-only"
+              >
+                Describe what you&apos;re planning
+              </label>
+              <textarea
+                id="other-planning-details"
+                rows={3}
+                className="w-full resize-none rounded-xl border border-neutral-200 px-4 py-3 text-[15px] leading-snug text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                placeholder="Type here what you&apos;re planning…"
+                value={otherDetails}
+                onChange={(e) => setOtherDetails(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
         </div>
 
         {submitError && (
@@ -541,8 +591,18 @@ export function DoubtfireWelcome({
 
         <button
           type="button"
-          disabled={!category || submitting}
-          onClick={() => void handleSubmit({})}
+          disabled={
+            !category ||
+            submitting ||
+            (category === "other" && !otherDetails.trim())
+          }
+          onClick={() =>
+            void handleSubmit(
+              category === "other"
+                ? { description: otherDetails.trim() }
+                : {}
+            )
+          }
           className="mt-1 w-full rounded-full py-3 text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
           style={{
             backgroundColor: BLUE,
@@ -763,7 +823,7 @@ export function DoubtfireWelcome({
 
   function handleCopyLink() {
     if (!referralCode) return;
-    const url = `${window.location.origin}/welcome?ref=${referralCode}`;
+    const url = `${window.location.origin}/?ref=${encodeURIComponent(referralCode)}`;
     void navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -795,25 +855,29 @@ export function DoubtfireWelcome({
         </div>
 
         {referralCode && (
-          <div className="w-full rounded-2xl border border-neutral-100 bg-neutral-50 p-4 text-left">
-            <p className="text-[13px] font-semibold text-neutral-800">
-              Move up the list — refer 3 friends
-            </p>
-            <p className="mt-0.5 text-[12px] leading-snug text-neutral-500">
+          <div className="w-full rounded-2xl border-[3px] border-black bg-neutral-50 p-5 text-left shadow-[4px_4px_0_0_rgba(0,0,0,0.12)]">
+            <p
+              className={
+                spotsLeft === 0
+                  ? "text-xl font-bold leading-snug text-black sm:text-[1.35rem]"
+                  : "text-[15px] font-normal leading-snug text-neutral-900 sm:text-base"
+              }
+            >
               {spotsLeft === 0
                 ? "You've referred 3 friends — you're at the top!"
-                : `Get early access when ${spotsLeft} more friend${spotsLeft !== 1 ? "s" : ""} sign up.`}
+                : `Refer ${spotsLeft} friend${spotsLeft !== 1 ? "s" : ""} to get early access.`}
             </p>
 
             {/* 3-slot progress row */}
-            <div className="mt-3 flex gap-2">
+            <div className="mt-4 flex gap-2.5">
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className="flex h-8 flex-1 items-center justify-center rounded-lg text-[11px] font-semibold transition-colors"
+                  className="flex h-11 min-h-11 flex-1 items-center justify-center rounded-xl border-[3px] border-black text-sm font-bold transition-colors"
                   style={{
-                    backgroundColor: i < referralCount ? BLUE : "#e5e7eb",
-                    color: i < referralCount ? "#ffffff" : "#9ca3af",
+                    backgroundColor: i < referralCount ? BLUE : "#ffffff",
+                    color: i < referralCount ? "#ffffff" : "#171717",
+                    boxShadow: i < referralCount ? undefined : "2px 2px 0 0 rgba(0,0,0,0.08)",
                   }}
                 >
                   {i < referralCount ? "✓" : i + 1}
@@ -824,7 +888,7 @@ export function DoubtfireWelcome({
             <button
               type="button"
               onClick={handleCopyLink}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white py-2.5 text-[13px] font-medium text-neutral-700 transition-colors hover:bg-neutral-50 active:bg-neutral-100"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-[3px] border-black bg-white py-3.5 text-base font-semibold text-neutral-900 shadow-[3px_3px_0_0_rgba(0,0,0,0.15)] transition-[transform,box-shadow,background-color] hover:bg-neutral-100 active:translate-y-px active:shadow-[2px_2px_0_0_rgba(0,0,0,0.12)]"
             >
               {copied ? (
                 <>

@@ -11,6 +11,8 @@ import { Cake, GraduationCap, PartyPopper } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
+import { REFERRAL_STORAGE_KEY } from "@/lib/referral-storage";
+
 import {
   DOUBTFIRE_BLUE as BLUE,
   DOUBTFIRE_SOFT_SHADOW as SOFT_SHADOW,
@@ -482,12 +484,22 @@ const SCENE5: Scene5Item[] = [
 ];
 
 
-function PersistentWaitlistBar() {
+function PersistentWaitlistBar({ referredByCode }: { referredByCode?: string }) {
   const router = useRouter();
   const [showChoice, setShowChoice] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState("");
+
+  useEffect(() => {
+    const code = referredByCode?.trim();
+    if (!code) return;
+    try {
+      sessionStorage.setItem(REFERRAL_STORAGE_KEY, code);
+    } catch {
+      /* ignore */
+    }
+  }, [referredByCode]);
 
   function handleJoinClick() {
     setShowEmailForm(false);
@@ -496,7 +508,12 @@ function PersistentWaitlistBar() {
 
   function handleChooseGoogle() {
     setShowChoice(false);
-    void signIn("google", { callbackUrl: "/welcome" });
+    const code = referredByCode?.trim();
+    const callbackUrl =
+      code && code.length > 0
+        ? `/welcome?ref=${encodeURIComponent(code)}`
+        : "/welcome";
+    void signIn("google", { callbackUrl });
   }
 
   function handleChooseEmail() {
@@ -520,6 +537,8 @@ function PersistentWaitlistBar() {
       return;
     }
     const params = new URLSearchParams({ method: "email", email: trimmed });
+    const code = referredByCode?.trim();
+    if (code) params.set("ref", code);
     router.push(`/welcome?${params.toString()}`);
   }
 
@@ -810,7 +829,11 @@ function renderScene5Item(item: Scene5Item, i: number) {
 }
 
 
-export function DoubtfireLanding() {
+export function DoubtfireLanding({
+  referredByCode,
+}: {
+  referredByCode?: string;
+} = {}) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const s1 = useRef<HTMLElement>(null);
   const s2 = useRef<HTMLElement>(null);
@@ -889,7 +912,7 @@ export function DoubtfireLanding() {
       }}
     >
       <BertramStaticBg />
-      <PersistentWaitlistBar />
+      <PersistentWaitlistBar referredByCode={referredByCode} />
       <div className="relative z-10 isolate">
         <DoubtfireSiteHeader />
 

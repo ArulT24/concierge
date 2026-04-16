@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { isValidEmail } from "@/lib/email";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
@@ -23,10 +24,10 @@ export async function POST(request: Request) {
     };
 
     const email = typeof body.email === "string" ? body.email.trim() : "";
-    if (!email || email.toLowerCase() !== sessionEmail) {
+    if (!isValidEmail(email)) {
       return NextResponse.json(
-        { error: "Email must match your signed-in Google account." },
-        { status: 403 }
+        { error: "Enter a valid email address." },
+        { status: 400 }
       );
     }
 

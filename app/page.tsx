@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     "Chat demo for parties, holidays, travel, and itineraries — Doubtfire-style marketing layout.",
 };
 
-export default function Home() {
-  return <DoubtfireLanding />;
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ ref?: string }>;
+}) {
+  const { ref } = await searchParams;
+  return <DoubtfireLanding referredByCode={ref} />;
 }

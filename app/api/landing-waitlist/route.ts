@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { isValidEmail } from "@/lib/email";
 import { createAdminClient } from "@/lib/supabase/server";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
@@ -142,12 +143,7 @@ export async function POST(request: Request) {
       return NextResponse.json(data);
     }
 
-    // Email sign-up: accept Google (NextAuth) users and unauthenticated email-only users.
-    // For Google users we validate the email matches the session; for email-only users
-    // we accept any well-formed email (this is a public waitlist with no gated data).
-    const session = await auth();
-    const sessionEmail = session?.user?.email?.trim().toLowerCase();
-
+    // Email sign-up: NextAuth users and unauthenticated email-only users.
     const email = typeof body.email === "string" ? body.email.trim() : "";
     if (!email) {
       return NextResponse.json(
@@ -155,12 +151,10 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    // If a NextAuth session exists, enforce that the submitted email matches it.
-    if (sessionEmail && email.toLowerCase() !== sessionEmail) {
+    if (!isValidEmail(email)) {
       return NextResponse.json(
-        { error: "Email must match your signed-in Google account." },
-        { status: 403 }
+        { error: "Enter a valid email address." },
+        { status: 400 }
       );
     }
 

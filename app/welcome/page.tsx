@@ -66,7 +66,11 @@ export default async function WelcomePage({
   const session = await auth();
 
   if (!session?.user?.email) {
-    redirect("/api/auth/signin?callbackUrl=/welcome");
+    const callbackPath =
+      ref !== undefined && ref !== ""
+        ? `/welcome?ref=${encodeURIComponent(ref)}`
+        : "/welcome";
+    redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent(callbackPath)}`);
   }
 
   const status = forceReset
