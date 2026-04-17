@@ -559,7 +559,7 @@ function PersistentWaitlistBar({ referredByCode }: { referredByCode?: string }) 
           }}
         >
           <p className="min-w-0 flex-1 text-[15px] leading-snug text-neutral-500">
-            Your <span className="font-bold text-neutral-900">personal</span> event planner.
+            Plan less, <span className="font-bold text-neutral-900">enjoy</span> more.
           </p>
           <button
             type="button"

@@ -7,7 +7,7 @@ import { PhoneWelcomeLoader } from "@/components/doubtfire/PhoneWelcomeLoader";
 
 export const metadata: Metadata = {
   title: "bertram",
-  description: "Tell us what you're planning and we'll reach out when Bertram is ready for you.",
+  description: "Tell us what you're planning and we'll reach out when bertram is ready for you.",
 };
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";

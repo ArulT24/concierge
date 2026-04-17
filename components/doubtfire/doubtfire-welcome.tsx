@@ -850,7 +850,7 @@ export function DoubtfireWelcome({
             You&apos;re on the list.
           </h2>
           <p className="mt-2 text-[15px] leading-snug text-neutral-500">
-            We&apos;ll reach out when Bertram is ready for you.
+            We&apos;ll reach out when bertram is ready for you.
           </p>
         </div>
 
